@@ -197,7 +197,7 @@ const verifierApplicationSchema = new mongoose.Schema(
 );
 
 const VerifierApplication = mongoose.model(
-  "VerifierApplication",
+  "hospitalapplyform",
   verifierApplicationSchema
 );
 

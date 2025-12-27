@@ -120,14 +120,7 @@ const scholarshipSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Register both model names for backward compatibility and new domain clarity:
-// - 'Scholarship' preserves existing populate() and code references
-// - 'GrantingPayment' is the preferred domain name moving forward
-try {
-  mongoose.model('Scholarship');
-} catch (e) {
-  mongoose.model('Scholarship', scholarshipSchema);
-}
+
 let GrantingPayment;
 try {
   GrantingPayment = mongoose.model('GrantingPayment');

@@ -1,7 +1,7 @@
 // routes/hospitalrouter.js - Emergency Medical Credit Platform
 const express = require('express');
 const router = express.Router();
-const verifierController = require('../controllers/verifiercontroller'); // Hospital controller (reusing verifier logic)
+const verifierController = require('../controllers/Hospitalcontroller'); // Hospital controller (reusing verifier logic)
 const upload = require('../middleware/upload');
 
 

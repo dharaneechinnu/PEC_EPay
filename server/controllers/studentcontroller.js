@@ -1,8 +1,8 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const User = require('../models/user');
-const verifierApplication = require('../models/verifierapplyform');
-const Scholarship = require('../models/scholarship');
+const verifierApplication = require('../models/Hospitalapplyform');
+const Scholarship = require('../models/GrantingPayment');
 
 // ✅ Generate Token
 const generateToken = (id) => {

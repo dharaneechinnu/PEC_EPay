@@ -1,11 +1,11 @@
 // controllers/adminController.js
 const AdminDonor = require('../models/AdminDonor');
-const Scholarship = require('../models/scholarship');
+const Scholarship = require('../models/GrantingPayment');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const { default: mongoose } = require('mongoose');
-const VerifierApplication = require('../models/verifierapplyform');
+const VerifierApplication = require('../models/Hospitalapplyform');
 const Transaction = require('../models/transaction');
 const { createPayout, createOrder, capturePayment, createContact, createFundAccount } = require('../services/razorpayService');
 const nodemailer = require('nodemailer');
