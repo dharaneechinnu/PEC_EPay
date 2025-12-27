@@ -5,6 +5,9 @@ node_modules/
 client/node_modules/
 client/build/
 
+# Backup of nested .git when converting submodule
+client/.git-backup/
+
 # Server
 server/node_modules/
 server/.env
