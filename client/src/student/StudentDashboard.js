@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const StudentDashboard = () => {
+const PatientDashboard = () => {
   const navigate = useNavigate();
   const token = localStorage.getItem('token');
 
@@ -16,7 +16,7 @@ const StudentDashboard = () => {
             color: #1e3a8a;
           }
 
-          .student-dashboard {
+          .patient-dashboard {
             min-height: 100vh;
             padding: 40px;
           }
@@ -45,7 +45,6 @@ const StudentDashboard = () => {
             font-size: 2rem;
             color: #00a2ff;
             font-weight: 700;
-            letter-spacing: 0.5px;
           }
 
           .logout-btn {
@@ -56,16 +55,6 @@ const StudentDashboard = () => {
             color: #fff;
             font-weight: 600;
             cursor: pointer;
-            transition: 0.3s ease;
-          }
-
-          .logout-btn:hover {
-            background: #008fe0;
-            box-shadow: 0 0 10px rgba(0, 162, 255, 0.3);
-          }
-
-          .dashboard-section {
-            margin-top: 30px;
           }
 
           .dashboard-grid {
@@ -80,26 +69,17 @@ const StudentDashboard = () => {
             border-radius: 12px;
             padding: 20px 24px;
             box-shadow: 0 4px 10px rgba(0, 162, 255, 0.08);
-            transition: all 0.25s ease;
+            transition: 0.25s ease;
           }
 
           .dashboard-card:hover {
             transform: translateY(-4px);
-            box-shadow: 0 6px 16px rgba(0, 162, 255, 0.15);
           }
 
           .dashboard-card h3 {
             margin-top: 0;
-            font-size: 1.3rem;
             color: #00a2ff;
-            font-weight: 700;
-          }
-
-          .dashboard-card p {
-            color: #1e3a8a;
-            line-height: 1.6;
-            font-size: 0.95rem;
-            margin-bottom: 10px;
+            font-size: 1.3rem;
           }
 
           .view-btn {
@@ -111,143 +91,101 @@ const StudentDashboard = () => {
             color: #fff;
             font-weight: 600;
             cursor: pointer;
-            transition: 0.3s ease;
           }
 
-          .view-btn:hover {
-            background: #008fe0;
-            box-shadow: 0 0 10px rgba(0, 162, 255, 0.25);
-          }
-
-          /* Application Checker Styles */
-          .app-checker-input {
+          .input-box {
             width: 100%;
-            padding: 10px 12px;
+            padding: 10px;
             border-radius: 8px;
             border: 2px solid #bde0ff;
-            background: #ffffff;
-            color: #1e3a8a;
-            margin-bottom: 12px;
-            font-size: 0.95rem;
-            transition: all 0.2s ease;
-          }
-
-          .app-checker-input::placeholder {
-            color: #5f9eff;
-          }
-
-          .app-checker-input:focus {
-            border-color: #00a2ff;
-            box-shadow: 0 0 6px rgba(0, 162, 255, 0.25);
-            outline: none;
-          }
-
-          .check-btn {
-            padding: 8px 14px;
-            border-radius: 8px;
-            border: 2px solid #00a2ff;
-            background: #00a2ff;
-            color: #fff;
-            font-weight: 600;
-            cursor: pointer;
-            transition: 0.3s ease;
-          }
-
-          .check-btn:hover {
-            background: #008fe0;
-            box-shadow: 0 0 10px rgba(0, 162, 255, 0.3);
+            margin-bottom: 10px;
           }
 
           .result-box {
-            margin-top: 14px;
-            background: #f4faff;
-            border: 1.5px solid #bde0ff;
+            margin-top: 12px;
             padding: 12px;
             border-radius: 8px;
-            font-size: 0.95rem;
-            color: #1e3a8a;
+            background: #f4faff;
+            border: 1.5px solid #bde0ff;
           }
 
           .error-text {
             color: #ff4d4f;
           }
 
-          .result-text {
+          .success-text {
             color: #0056b3;
-            line-height: 1.5;
-          }
-
-          @media (max-width: 600px) {
-            header h1 {
-              font-size: 1.6rem;
-            }
-            .dashboard-card h3 {
-              font-size: 1.1rem;
-            }
           }
         `}
       </style>
 
-      <div className="student-dashboard">
+      <div className="patient-dashboard">
         <div className="dashboard-container">
           <header>
-            <h1>Student Dashboard</h1>
+            <h1>Patient Dashboard</h1>
             <button
               className="logout-btn"
               onClick={() => {
                 localStorage.removeItem('token');
-                navigate('/Student/Login');
+                navigate('/login');
               }}
             >
               {token ? 'Logout' : 'Login'}
             </button>
           </header>
 
-          <section className="dashboard-section">
-            <div className="dashboard-grid">
-              {/* Browse Scholarships Card */}
-              <div className="dashboard-card">
-                <h3>Browse Scholarships</h3>
-                <p>Find scholarships you can apply for. Carefully review eligibility & deadlines.</p>
-                <button
-                  className="view-btn"
-                  onClick={() => navigate('/Student/ViewScholarships')}
-                >
-                  View Scholarships
-                </button>
-              </div>
-
-              {/* Application Status Card */}
-              <div className="dashboard-card">
-                <h3>Check Application Status</h3>
-                <p>Enter your application number to see status and donor decision.</p>
-                <ApplicationStatusChecker />
-              </div>
+          <div className="dashboard-grid">
+            {/* Emergency Credit Card */}
+            <div className="dashboard-card">
+              <h3>Emergency Credit Status</h3>
+              <p>Check the status of your emergency hospital credit.</p>
+              <EmergencyCreditChecker />
             </div>
-          </section>
+
+            {/* EMI Card */}
+            <div className="dashboard-card">
+              <h3>EMI & Repayment</h3>
+              <p>View your EMI schedule and make repayments.</p>
+              <button
+                className="view-btn"
+                onClick={() => navigate('/patient/repayment')}
+              >
+                View EMI Details
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </>
   );
 };
 
-const ApplicationStatusChecker = () => {
-  const [applicationNo, setApplicationNo] = React.useState('');
+const EmergencyCreditChecker = () => {
+  const [requestId, setRequestId] = React.useState('');
   const [result, setResult] = React.useState(null);
   const [loading, setLoading] = React.useState(false);
 
   const checkStatus = async () => {
-    if (!applicationNo)
-      return setResult({ error: 'Please provide an application number' });
+    if (!requestId) {
+      setResult({ error: 'Please enter Request ID' });
+      return;
+    }
+
     setLoading(true);
     setResult(null);
+
     try {
+      // MOCK API – replace later
       const res = await fetch(
-        `http://localhost:3500/student/applicationstatus/${encodeURIComponent(applicationNo)}`
+        `http://localhost:3500/patient/credit-status/${encodeURIComponent(requestId)}`
       );
       const data = await res.json();
-      if (!res.ok) return setResult({ error: data.message || 'Unable to fetch' });
-      setResult({ success: data });
+
+      if (!res.ok) {
+        setResult({ error: data.message || 'Unable to fetch status' });
+      } else {
+        setResult({ success: data });
+      }
     } catch (err) {
       setResult({ error: err.message });
     } finally {
@@ -256,19 +194,16 @@ const ApplicationStatusChecker = () => {
   };
 
   return (
-    <div>
+    <>
       <input
-        value={applicationNo}
-        onChange={(e) => setApplicationNo(e.target.value)}
-        placeholder="Application No (e.g. APP-123)"
-        className="app-checker-input"
+        className="input-box"
+        placeholder="Credit Request ID (e.g. CR-1023)"
+        value={requestId}
+        onChange={(e) => setRequestId(e.target.value)}
       />
-      <button
-        onClick={checkStatus}
-        disabled={loading}
-        className="check-btn"
-      >
-        {loading ? 'Checking...' : 'Check'}
+
+      <button className="view-btn" onClick={checkStatus}>
+        {loading ? 'Checking...' : 'Check Status'}
       </button>
 
       {result && (
@@ -276,19 +211,17 @@ const ApplicationStatusChecker = () => {
           {result.error ? (
             <div className="error-text">{result.error}</div>
           ) : (
-            <div className="result-text">
-              <div><strong>Application:</strong> {result.success.applicationNo}</div>
+            <div className="success-text">
               <div><strong>Status:</strong> {result.success.status}</div>
-              <div><strong>Donor Decision:</strong> {result.success.donorDecision}</div>
-              {result.success.donorRemarks && (
-                <div><strong>Donor Remarks:</strong> {result.success.donorRemarks}</div>
-              )}
+              <div><strong>Amount Approved:</strong> ₹{result.success.amount}</div>
+              <div><strong>Hospital:</strong> {result.success.hospital}</div>
+              <div><strong>Repayment:</strong> {result.success.repaymentType}</div>
             </div>
           )}
         </div>
       )}
-    </div>
+    </>
   );
 };
 
-export default StudentDashboard;
+export default PatientDashboard;
