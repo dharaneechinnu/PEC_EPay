@@ -25,10 +25,9 @@ app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Routes
-app.use('/superadmin', require('./routes/superadminrouter'));
 app.use('/admin', require('./routes/adminrouter'));
-app.use('/student', require('./routes/studentrouter'));
-app.use('/verifier', require('./routes/verifierrouter'));
+app.use('/Patient', require('./routes/Patientrouter'));
+app.use('/hospital', require('./routes/hospitalrouter'));
 
 
 // Multer and general error handler

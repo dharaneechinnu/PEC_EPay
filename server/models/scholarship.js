@@ -1,84 +1,83 @@
-// models/scholarshipModel.js
+// models/scholarship.js - Granting Payment (Emergency Medical Credit Products)
+// Note: This file historically used the 'Scholarship' model name for compatibility.
+// Now it also registers a 'GrantingPayment' model alias to reflect the domain term.
 const mongoose = require('mongoose');
 
 const scholarshipSchema = new mongoose.Schema(
   {
+  // Emergency Credit Product Information
   scholarshipName: {
       type: String,
       required: true,
       trim: true,
+      // Examples: "Emergency Cardiac Surgery Credit", "Critical Care Emergency Fund"
       },
       providerName: {
       type: String,
       required: true,
       trim: true,
+      // NBFC Partner providing the emergency credit
       },
       description: {
       type: String,
       required: true,
+      // Credit product description and terms
       },
+      
+      // Emergency Credit Eligibility (replaces academic criteria)
       eligibilityCriteria: {
-      tenthMarks: {
-      type: Number,
-      min: 0,
-      max: 100,
-      default: null,
+      // Medical Emergency Criteria
+      emergencyType: {
+        type: [String],
+        enum: ['cardiac', 'trauma', 'surgery', 'icu', 'cancer', 'neurological', 'pediatric', 'any'],
+        default: ['any']
       },
-      twelfthMarks: {
-      type: Number,
-      min: 0,
-      max: 100,
-      default: null,
+      minCreditScore: {
+        type: Number,
+        min: 300,
+        max: 850,
+        default: null,
       },
-      collegeCGPA: {
-      type: Number,
-      min: 0,
-      max: 10,
-      default: null,
+      maxPatientAge: {
+        type: Number,
+        default: null,
       },
-      maxParentIncome: {
-      type: Number,
-      default: null,
+      minPatientIncome: {
+        type: Number,
+        default: null,
       },
-      womenPreference: {
-      type: Boolean,
-      default: false,
+      maxPatientIncome: {
+        type: Number,
+        default: null,
       },
-      academicPerformance: {
-      type: String,
-
-      default: "Any",
+      insuranceRequired: {
+        type: Boolean,
+        default: false,
       },
-      disabilityAllowed: {
-      type: [String],
-      enum: [
-      "None",
-      "Physical Disability",
-      "Visual Impairment",
-      "Hearing Impairment",
-      "Learning / Other Disability",
-      ],
-      default: ["None"],
+      collateralRequired: {
+        type: Boolean,
+        default: false, // Emergency loans typically uncollateralized
       },
-      extracurricular: {
-      type: [String],
-      enum: [
-      "Sports & Fitness",
-      "Technical & Innovation",
-      "Academic & Research Activities",
-      "Leadership & Volunteering",
-      "Entrepreneurship & Startups",
-      ],
-      default: [],
+      guarantorRequired: {
+        type: Boolean,
+        default: false,
       },
-      firstGenGraduate: {
-      type: Boolean,
-      default: false,
+      employmentStatus: {
+        type: [String],
+        enum: ['employed', 'self-employed', 'unemployed', 'student', 'retired', 'any'],
+        default: ['any'],
       },
-      specialCategory: {
-      type: [String], // ["Single Parent", "Orphan"]
-      default: [],
+      medicalHistory: {
+        type: [String],
+        enum: ['none', 'pre-existing-conditions', 'chronic-illness', 'any'],
+        default: ['any'],
       },
+      creditHistory: {
+        type: String,
+        enum: ['excellent', 'good', 'fair', 'poor', 'any'],
+        default: 'any',
+      },
+      
       },
       applicationDeadline: {
       type: Date,
@@ -89,35 +88,51 @@ const scholarshipSchema = new mongoose.Schema(
       required: true,
       },
 
-    // ✅ Link to Donor (Who created it)
+    // ✅ Link to NBFC/Credit Provider (Who created this credit product)
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Donor',
+      ref: 'AdminDonor', // Maintains compatibility - represents NBFC partner
       required: true,
     },
-
-    // // ✅ Applied Students
-    // applicants: [
-    //   {
-    //     studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'UsersLogins' },
-    //     status: {
-    //       type: String,
-    //       enum: ['pending', 'verified', 'approved', 'funded', 'rejected'],
-    //       default: 'pending',
-    //     },
-    //     appliedAt: { type: Date, default: Date.now },
-    //   },
-    // ],
-
-  
+    
+    // Emergency Credit Product Status
     isActive: {
       type: Boolean,
       default: true,
+    },
+    
+    // Credit Product Availability
+    availableAmount: {
+      type: Number,
+      default: function() { return this.scholarshipAmount; }, // Initially equals max amount
+    },
+    
+    // Product Limits
+    maxRequestsPerHospital: {
+      type: Number,
+      default: 10, // Max simultaneous requests per hospital
+    },
+    dailyCreditLimit: {
+      type: Number,
+      default: 5000000, // Daily disbursement limit in paise (50 lakh INR)
     },
   },
   { timestamps: true }
 );
 
+// Register both model names for backward compatibility and new domain clarity:
+// - 'Scholarship' preserves existing populate() and code references
+// - 'GrantingPayment' is the preferred domain name moving forward
+try {
+  mongoose.model('Scholarship');
+} catch (e) {
+  mongoose.model('Scholarship', scholarshipSchema);
+}
+let GrantingPayment;
+try {
+  GrantingPayment = mongoose.model('GrantingPayment');
+} catch (e) {
+  GrantingPayment = mongoose.model('GrantingPayment', scholarshipSchema);
+}
 
-const Scholarship = mongoose.model('Scholarship', scholarshipSchema);
-module.exports = Scholarship;
+module.exports = GrantingPayment;

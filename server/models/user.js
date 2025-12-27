@@ -25,7 +25,7 @@ const userSchema = new mongoose.Schema({
   // Scholarship Flow
   eligibilityScore: { type: Number, default: 0 },
   verifiedByInstitution: { type: Boolean, default: false },
-  approvedByDonor: { type: Boolean, default: false },
+  approvedByAdminDonor: { type: Boolean, default: false },
   applicationStatus: {
     type: String,
     enum: ['pending', 'verified', 'approved', 'funded', 'rejected'],

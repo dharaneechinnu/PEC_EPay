@@ -112,16 +112,16 @@ exports.Applicationstatus = async (req, res) => {
 
     // Note: model stores the field as `ApplicationNo`
     const application = await verifierApplication.findOne({ ApplicationNo: applicationNo }).select(
-      'ApplicationNo status donorDecision donorRemarks donorActionAt'
+      'ApplicationNo status AdminDonorDecision AdminDonorRemarks AdminDonorActionAt'
     );
     if (!application) return res.status(404).json({ message: 'Application not found' });
 
     res.status(200).json({
       applicationNo: application.ApplicationNo,
       status: application.status,
-      donorDecision: application.donorDecision,
-      donorRemarks: application.donorRemarks,
-      donorActionAt: application.donorActionAt,
+      AdminDonorDecision: application.AdminDonorDecision,
+      AdminDonorRemarks: application.AdminDonorRemarks,
+      AdminDonorActionAt: application.AdminDonorActionAt,
     });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching application status', error: error.message });

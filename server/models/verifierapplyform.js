@@ -1,44 +1,94 @@
-// models/verifierApplicationModel.js
+// models/verifierApplicationModel.js - Emergency Medical Credit Requests
+// Note: Maintaining model structure for API compatibility
+// but now represents Emergency Medical Credit Requests from Hospitals
 const mongoose = require("mongoose");
 
 const verifierApplicationSchema = new mongoose.Schema(
   {
+    // Hospital Information (was verifierId)
     verifierId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "verifier",
+      ref: "Hospital", // Hospital making the emergency credit request
       required: true,
     },
     ApplicationNo:{
       type: String,
       required: true,
       unique: true,
+      // Format: EMC-YYYYMMDD-XXXXX (Emergency Medical Credit)
     },
-     donorid: {
+    // NBFC/Credit Provider Information
+    AdminDonorid: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Donor",
+      ref: "AdminAdminDonor", // NBFC providing emergency credit
       required: true,
     },
-    // adminId: reference to the donor/admin who created the scholarship
+    // adminId: reference to the NBFC admin who manages this credit product
     adminId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Donor',
+      ref: 'AdminDonor',
       required: false,
     },
+    // Emergency Credit Product Reference
     scholarshipId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Scholarship",
+      ref: "Scholarship", // Emergency Credit Product
       required: true,
     },
-    studentname: { type: String, required: true, trim: true },
-    studentemail: { type: String, required: true, trim: true },
+    
+    // Patient Information (was student fields)
+    studentname: { type: String, required: true, trim: true }, // Patient Name
+    studentemail: { type: String, required: true, trim: true }, // Patient Email
     studentid: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "UsersLogins",
-    
+      ref: "UsersLogins", // Patient User Account
     },
     gender: { type: String, enum: ["male", "female", "other"], required: true },
-    institutionname: { type: String, required: true, trim: true },
-    classoryear: { type: String, required: true, trim: true },
+    
+    // Hospital & Medical Information
+    institutionname: { type: String, required: true, trim: true }, // Hospital Name
+    classoryear: { type: String, required: true, trim: true }, // Department/Ward
+    
+    // Emergency Medical Details (replacing academic fields)
+    emergencyType: {
+      type: String,
+      enum: ['cardiac', 'trauma', 'surgery', 'icu', 'cancer', 'neurological', 'pediatric', 'other'],
+      required: true
+    },
+    medicalCondition: { type: String, required: true, trim: true }, // Diagnosis
+    treatmentRequired: { type: String, required: true, trim: true }, // Treatment plan
+    urgencyLevel: {
+      type: String,
+      enum: ['critical', 'urgent', 'moderate'],
+      required: true,
+      default: 'urgent'
+    },
+    estimatedTreatmentCost: { type: Number, required: true }, // Expected cost
+    
+    // Patient Financial Information
+    patientAge: { type: Number, min: 0, max: 120 },
+    patientIncome: { type: Number }, // Monthly income
+    familyIncome: { type: Number, required: true }, // Family monthly income
+    insuranceStatus: {
+      type: String,
+      enum: ['insured', 'uninsured', 'partial'],
+      default: 'uninsured'
+    },
+    insuranceProvider: { type: String, trim: true },
+    insurancePolicyNumber: { type: String, trim: true },
+    insuranceClaimAmount: { type: Number, default: 0 },
+    
+    // Credit Assessment (replacing academic fields)
+    creditScore: { type: Number, min: 300, max: 850 },
+    employmentStatus: {
+      type: String,
+      enum: ['employed', 'self-employed', 'unemployed', 'student', 'retired'],
+      default: 'employed'
+    },
+    employerName: { type: String, trim: true },
+    monthlyIncome: { type: Number },
+    
+    // Legacy fields for backward compatibility
     tenthMarks: { type: Number, min: 0, max: 100 },
     twelfthMarks: { type: Number, min: 0, max: 100 },
     semesterCgpa: [
@@ -47,7 +97,6 @@ const verifierApplicationSchema = new mongoose.Schema(
         cgpa: { type: Number, min: 0, max: 10 },
       },
     ],
-    familyIncome: { type: Number, required: true },
     firstGenGraduate: { type: Boolean, default: false },
     documents: [
       {
@@ -102,27 +151,47 @@ const verifierApplicationSchema = new mongoose.Schema(
         failureReason: { type: String },
       },
     ],
+    // Emergency Credit Request Status
     status: {
       type: String,
-      enum: ["pending", "submitted", "approved", "funded", "rejected"],
+      enum: ["pending", "submitted", "risk-assessment", "nbfc-review", "approved", "funded", "disbursed", "rejected", "expired"],
       default: "submitted",
     },
-    remarks: { type: String, trim: true },
+    remarks: { type: String, trim: true }, // Hospital remarks
+    
+    // Credit Amount & Funding
     fundedraised:{
         type: Number,
         required: true,
         default:0
     },
-    // Donor review fields
+    requestedAmount: { type: Number, required: true }, // Amount requested by hospital
+    approvedAmount: { type: Number, default: 0 }, // Amount approved by NBFC
+    disbursedAmount: { type: Number, default: 0 }, // Amount actually disbursed
     
-   
-    donorRemarks: { type: String, trim: true },
-    donorDecision: {
+    // NBFC Decision (was AdminDonor decision)
+    AdminDonorRemarks: { type: String, trim: true }, // NBFC remarks
+    AdminDonorDecision: {
       type: String,
-      enum: ["pending", "approved", "rejected", "funded"],
+      enum: ["pending", "risk-approved", "approved", "rejected", "funded", "disbursed"],
       default: "pending",
     },
-    donorActionAt: { type: Date },
+    AdminDonorActionAt: { type: Date }, // NBFC decision timestamp
+    
+    // Emergency Credit Workflow Timestamps
+    emergencyRequestedAt: { type: Date, default: Date.now },
+    riskAssessmentCompletedAt: { type: Date },
+    nbfcApprovedAt: { type: Date },
+    fundsDisbursedat: { type: Date },
+    
+    // Repayment Information
+    repaymentSchedule: {
+      emiAmount: { type: Number },
+      numberOfEmi: { type: Number },
+      emiStartDate: { type: Date },
+      interestRate: { type: Number },
+      processingFee: { type: Number }
+    },
   },
   { timestamps: true }
 );

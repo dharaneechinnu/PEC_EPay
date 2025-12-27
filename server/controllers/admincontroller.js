@@ -1,5 +1,5 @@
 // controllers/adminController.js
-const Donor = require('../models/donor');
+const AdminDonor = require('../models/AdminDonor');
 const Scholarship = require('../models/scholarship');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
@@ -8,20 +8,19 @@ const { default: mongoose } = require('mongoose');
 const VerifierApplication = require('../models/verifierapplyform');
 const Transaction = require('../models/transaction');
 const { createPayout, createOrder, capturePayment, createContact, createFundAccount } = require('../services/razorpayService');
-const { createBlock, generateSecureTransactionId } = require('../services/blockchainService');
 const nodemailer = require('nodemailer');
 const PDFDocument = require('pdfkit');
 const stream = require('stream');
 const { sendReceiptEmailUsingGmail } = require('../utils/email');
 
 
-exports.registerDonorRequest = async (req, res) => {
+exports.registerAdminDonorRequest = async (req, res) => {
   try {
-    console.log("DEBUG: Starting donor registration process");
+    console.log("DEBUG: Starting AdminDonor registration process");
     
     const {
       orgName,
-      donorType,
+      AdminDonorType,
       contactPerson,
       contactEmail,
       website,
@@ -39,9 +38,9 @@ exports.registerDonorRequest = async (req, res) => {
       });
     }
 
-    console.log("DEBUG: Checking for existing donor with email:", contactEmail);
-    const existing = await Donor.findOne({ contactEmail: contactEmail });
-    console.log("DEBUG: Existing donor check result:", existing);
+    console.log("DEBUG: Checking for existing AdminDonor with email:", contactEmail);
+    const existing = await AdminDonor.findOne({ contactEmail: contactEmail });
+    console.log("DEBUG: Existing AdminDonor check result:", existing);
     if (existing) {
       console.log("DEBUG: Email already exists in database");
       return res.status(400).json({ 
@@ -52,23 +51,23 @@ exports.registerDonorRequest = async (req, res) => {
 
     console.log("DEBUG: Hashing password");
 
-    console.log("DEBUG: Creating new donor object");
+    console.log("DEBUG: Creating new AdminDonor object");
 
-    // Generate a temporary password for donor login (will be hashed by User pre-save hook)
+    // Generate a temporary password for AdminDonor login (will be hashed by User pre-save hook)
     const tempPassword = crypto.randomBytes(6).toString('base64').replace(/\+/g, 'A').replace(/\//g, 'B').slice(0,12);
 
-    const donor = new Donor({
+    const AdminDonor = new AdminDonor({
       // Required User fields (provide safe defaults)
       name: contactPerson || orgName,
       email: contactEmail,
       password: tempPassword,
       dob: req.body.dob ? new Date(req.body.dob) : new Date('1900-01-01'),
       gender: req.body.gender || 'other',
-      institution: orgName || req.body.institution || 'DonorOrg',
+      institution: orgName || req.body.institution || 'AdminDonorOrg',
 
-      // Donor-specific fields
+      // AdminDonor-specific fields
       orgName,
-      donorType,
+      AdminDonorType,
       contactPerson,
       contactEmail,
       website,
@@ -77,24 +76,24 @@ exports.registerDonorRequest = async (req, res) => {
       status: 'pending',
     });
 
-    console.log("DEBUG: Saving donor to database");
-    await donor.save();
-    console.log("DEBUG: Donor saved successfully with ID:", donor._id);
+    console.log("DEBUG: Saving AdminDonor to database");
+    await AdminDonor.save();
+    console.log("DEBUG: AdminDonor saved successfully with ID:", AdminDonor._id);
 
     res.status(201).json({
       message: 'Registration request submitted successfully. Awaiting Super Admin approval.',
-      donor: {
-        id: donor._id,
-        orgName: donor.orgName,
-        status: donor.status,
+      AdminDonor: {
+        id: AdminDonor._id,
+        orgName: AdminDonor.orgName,
+        status: AdminDonor.status,
       },
       debug: 'Registration completed successfully'
     });
   } catch (error) {
-    console.error("DEBUG: Error in registerDonorRequest:", error);
+    console.error("DEBUG: Error in registerAdminDonorRequest:", error);
     console.error("DEBUG: Error stack:", error.stack);
     res.status(500).json({ 
-      message: 'registerDonorRequest Error submitting request', 
+      message: 'registerAdminDonorRequest Error submitting request', 
       error: error.message,
       debug: {
         errorName: error.name,
@@ -114,7 +113,7 @@ try {
     console.log("username and password are missing");
     res.status(404).json({"message":"username and Password are missing"});
   }
-  const admin = await Donor.findOne({username:username});
+  const admin = await AdminDonor.findOne({username:username});
 
   const ismatch =  bcrypt.compare(password,admin.password);
   if(!ismatch){
@@ -145,7 +144,7 @@ exports.createScholarship = async (req, res) => {
       applicationDeadline,
       scholarshipAmount,
       isActive,
-      createdBy // optional donor id (if authentication not wired)
+      createdBy // optional AdminDonor id (if authentication not wired)
     } = req.body;
 
     // ✅ Basic validation
@@ -156,18 +155,18 @@ exports.createScholarship = async (req, res) => {
       });
     }
 
-    // ✅ Get donor ID (from auth or body)
-    const donorId = req.user?.id || createdBy;
-    if (!donorId) {
+    // ✅ Get AdminDonor ID (from auth or body)
+    const AdminDonorId = req.user?.id || createdBy;
+    if (!AdminDonorId) {
       return res.status(400).json({
-        message: 'Donor id (createdBy) is required. Provide it in request body or via authentication.',
+        message: 'AdminDonor id (createdBy) is required. Provide it in request body or via authentication.',
       });
     }
 
-    // ✅ Validate donor existence
-    const donor = await Donor.findById(donorId);
-    if (!donor) {
-      return res.status(404).json({ message: 'Donor not found' });
+    // ✅ Validate AdminDonor existence
+    const AdminDonor = await AdminDonor.findById(AdminDonorId);
+    if (!AdminDonor) {
+      return res.status(404).json({ message: 'AdminDonor not found' });
     }
 
     // ✅ Prepare scholarship data
@@ -189,7 +188,7 @@ exports.createScholarship = async (req, res) => {
       },
       applicationDeadline: new Date(applicationDeadline),
       scholarshipAmount,
-      createdBy: donor._id,
+      createdBy: AdminDonor._id,
       isActive: typeof isActive === 'boolean' ? isActive : true,
     };
 
@@ -286,7 +285,7 @@ exports.updateApplicationDocumentandapplication = async (req, res) => {
     // Set application status if provided and valid
     if (status === 'approved' || status === 'rejected') {
       application.status = status;
-      application.donorDecision = status;
+      application.AdminDonorDecision = status;
     }
 
     await application.save();
@@ -447,16 +446,16 @@ exports.makePayoutToVerifier = async (req, res) => {
         completedAt: payoutResp?.funded_at ? new Date(Number(payoutResp.funded_at) * 1000) : undefined,
         failureReason: payoutResp?.failure_reason,
       });
-      // Also mark donorDecision as funded and record action time
+      // Also mark AdminDonorDecision as funded and record action time
       try {
-        application.donorDecision = 'funded';
-        application.donorActionAt = new Date();
+        application.AdminDonorDecision = 'funded';
+        application.AdminDonorActionAt = new Date();
         // Update fundedraised (store in rupees, add to existing if present)
         const paidPaise = amount || (txnPayload && txnPayload.amount) || 0;
         const paidRupees = Number((paidPaise / 100).toFixed(2));
         application.fundedraised = (Number(application.fundedraised || 0) + paidRupees);
       } catch (setErr) {
-        console.warn('Could not update donorDecision/fundedraised on application:', setErr);
+        console.warn('Could not update AdminDonorDecision/fundedraised on application:', setErr);
       }
       await application.save();
     } catch (appErr) {
@@ -583,9 +582,6 @@ exports.verifyPaymentForApplication = async (req, res) => {
     // Update transaction record
   const txn = await Transaction.findOne({ applicationId, orderId: razorpay_order_id });
     if (!txn) {
-      // Generate secure transaction ID using blockchain service
-      const secureTransactionId = generateSecureTransactionId(applicationId, razorpay_payment_id);
-      
       // Create a transaction if missing (include beneficiaryId and amount if available)
       const adminIdForPaidTxn = application.adminId || (scholarship && scholarship.createdBy) || undefined;
       const newTxnPayload = {
@@ -597,7 +593,6 @@ exports.verifyPaymentForApplication = async (req, res) => {
         paymentId: razorpay_payment_id,
         orderId: razorpay_order_id,
         paidAt: new Date(),
-        hashedTransactionId: secureTransactionId,
         rawResponse: req.body,
       };
       if (adminIdForPaidTxn) newTxnPayload.adminid = adminIdForPaidTxn;
@@ -606,37 +601,7 @@ exports.verifyPaymentForApplication = async (req, res) => {
       }
       const newTxn = await Transaction.create(newTxnPayload);
 
-      // Create blockchain block for this transaction
-      try {
-        const blockData = {
-          applicationId: applicationId,
-          transactionId: newTxn._id.toString(),
-          userId: application.studentid || 'anonymous',
-          amount: amount || 0,
-          currency: 'INR',
-          status: 'paid',
-          razorpayPaymentId: razorpay_payment_id,
-          razorpayOrderId: razorpay_order_id,
-        };
-
-        const block = await createBlock(blockData);
-        
-        // Update transaction with block reference
-        newTxn.blockId = block._id;
-        await newTxn.save();
-        
-        console.log(`Blockchain block created for transaction ${newTxn._id}: ${block.hash}`);
-      } catch (blockError) {
-        console.error('Error creating blockchain block:', blockError);
-        // Continue execution even if blockchain fails
-      }
-
       return res.status(200).json({ message: 'Payment verified', transaction: newTxn });
-    }
-
-    // Generate secure transaction ID if not present
-    if (!txn.hashedTransactionId) {
-      txn.hashedTransactionId = generateSecureTransactionId(applicationId, razorpay_payment_id);
     }
 
     // Ensure adminid exists on existing transaction (populate from application or scholarship)
@@ -655,35 +620,13 @@ exports.verifyPaymentForApplication = async (req, res) => {
     txn.rawResponse = txn.rawResponse || {};
     txn.rawResponse.paymentVerification = req.body;
     
-    // Create blockchain block for existing transaction if not already created
-    if (!txn.blockId) {
-      try {
-        const blockData = {
-          applicationId: applicationId,
-          transactionId: txn._id.toString(),
-          userId: application.studentid || 'anonymous',
-          amount: amount || txn.amount || 0,
-          currency: 'INR',
-          status: 'paid',
-          razorpayPaymentId: razorpay_payment_id,
-          razorpayOrderId: razorpay_order_id,
-        };
-
-        const block = await createBlock(blockData);
-        txn.blockId = block._id;
-        
-        console.log(`Blockchain block created for existing transaction ${txn._id}: ${block.hash}`);
-      } catch (blockError) {
-        console.error('Error creating blockchain block for existing transaction:', blockError);
-        // Continue execution even if blockchain fails
-      }
-    }
+    // blockchain integration removed: no block is created for transactions
     
     await txn.save();
-    // Mark application as funded (donor decision) and record action time
+    // Mark application as funded (AdminDonor decision) and record action time
     try {
-      application.donorDecision = 'funded';
-      application.donorActionAt = new Date();
+      application.AdminDonorDecision = 'funded';
+      application.AdminDonorActionAt = new Date();
       // Record funded amount on application (convert paise -> rupees)
       try {
         const paidPaise = (typeof amount !== 'undefined' && amount) ? amount : (txn && txn.amount ? txn.amount : 0);
@@ -692,9 +635,9 @@ exports.verifyPaymentForApplication = async (req, res) => {
         console.warn('Could not set application.fundedraised:', setAmtErr);
       }
       await application.save();
-      console.debug('Application donorDecision updated to funded for', applicationId);
+      console.debug('Application AdminDonorDecision updated to funded for', applicationId);
     } catch (appUpdateErr) {
-      console.error('Failed to update application donorDecision to funded:', appUpdateErr);
+      console.error('Failed to update application AdminDonorDecision to funded:', appUpdateErr);
     }
 
     // Send receipt emails to student and verifier (best-effort) with PDF attachment
@@ -946,7 +889,7 @@ exports.getAllApplications = async (req, res) => {
 };
 
 
-// New: Get paginated applications for an admin (donor) resolved via adminId stored on applications
+// New: Get paginated applications for an admin (AdminDonor) resolved via adminId stored on applications
 exports.getApplicationsByAdminId = async (req, res) => {
   try {
     const { adminId } = req.params;
@@ -1121,14 +1064,14 @@ exports.searchTransactions = async (req, res) => {
     if (status) filter.status = status;
     if (beneficiaryId) filter.beneficiaryId = beneficiaryId;
 
-    // Free text query: try matching transferId/paymentId/orderId/hashedTransactionId
+    // Free text query: try matching transferId/paymentId/orderId
     if (q && typeof q === 'string' && q.trim().length > 0) {
       const regex = new RegExp(q.trim(), 'i');
       filter.$or = [
         { transferId: regex },
         { paymentId: regex },
         { orderId: regex },
-        { hashedTransactionId: regex },
+        
       ];
     }
 
@@ -1168,7 +1111,6 @@ exports.getTransactionsByAdminId = async (req, res) => {
         { transferId: regex },
         { paymentId: regex },
         { orderId: regex },
-        { hashedTransactionId: regex },
         { beneficiaryId: regex },
       ];
     }

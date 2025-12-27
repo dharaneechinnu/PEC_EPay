@@ -1,4 +1,4 @@
-const Verifier = require('../models/verifier');
+const Verifier = require('../models/hospital');
 const Scholarship = require('../models/scholarship');
 const VerifierApplication = require('../models/verifierapplyform');
 const mongoose = require('mongoose');
@@ -137,7 +137,7 @@ exports.applyForScholarship = async (req, res) => {
     const data = req.body;
 
     // Basic required fields validation
-    const required = ['verifierId', 'scholarshipId', 'studentname', 'studentemail',  'gender', 'institutionname', 'classoryear', 'familyIncome', 'fundedraised', 'donorid'];
+    const required = ['verifierId', 'scholarshipId', 'studentname', 'studentemail',  'gender', 'institutionname', 'classoryear', 'familyIncome', 'fundedraised', 'AdminDonorid'];
     for (const f of required) {
       if (!data[f]) return res.status(400).json({ message: `${f} is required` });
     }
@@ -146,7 +146,7 @@ exports.applyForScholarship = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(data.verifierId)) return res.status(400).json({ message: 'Invalid verifierId' });
     if (!mongoose.Types.ObjectId.isValid(data.scholarshipId)) return res.status(400).json({ message: 'Invalid scholarshipId' });
    
-  if (!mongoose.Types.ObjectId.isValid(data.donorid)) return res.status(400).json({ message: 'Invalid donorid' });
+  if (!mongoose.Types.ObjectId.isValid(data.AdminDonorid)) return res.status(400).json({ message: 'Invalid AdminDonorid' });
 
     // Ensure scholarship exists
     const scholarship = await Scholarship.findById(data.scholarshipId);
@@ -214,7 +214,7 @@ exports.applyForScholarship = async (req, res) => {
       scholarshipId: data.scholarshipId,
       // adminId will be resolved server-side from scholarship.createdBy
       adminId: scholarship.createdBy || undefined,
-      donorid: data.donorid,
+      AdminDonorid: data.AdminDonorid,
       studentname: data.studentname,
       studentemail: data.studentemail,
     

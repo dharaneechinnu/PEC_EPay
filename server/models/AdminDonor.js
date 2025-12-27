@@ -1,11 +1,11 @@
-// models/donorModel.js
+// models/AdminDonorModel.js
 const mongoose = require('mongoose');
 
-const donorSchema = new mongoose.Schema({
+const AdminDonorSchema = new mongoose.Schema({
   orgName: { type: String, required: true, trim: true },
   username: { type: String, trim: true },
   password: { type: String, },
-  donorType: { type: String, enum: ['NGO', 'CSR', 'Individual'], required: true },
+  AdminDonorType: { type: String, enum: ['NGO', 'CSR', 'Individual'], required: true },
   contactPerson: { type: String, required: true, trim: true },
   contactEmail: { type: String, required: true, lowercase: true },
   website: { type: String, trim: true },
@@ -16,5 +16,5 @@ const donorSchema = new mongoose.Schema({
   scholarshipsPosted: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Scholarship' }],
 }, { timestamps: true });
 
-const Donor = mongoose.model('Donor', donorSchema);
-module.exports = Donor;
+const AdminDonor = mongoose.model('AdminDonor', AdminDonorSchema);
+module.exports = AdminDonor;
