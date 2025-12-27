@@ -19,8 +19,16 @@ mongoose.connect(MONGODB_URL)
   });
 
 // Middleware
-app.use(cors());
+app.use(cors({ origin: ['http://localhost:3000'], credentials: true }));
 app.use(express.json());
+
+// Set permissive COOP/COEP headers for local dev (helps with postMessage from popups/one-tap)
+app.use((req, res, next) => {
+  // Allow popups and cross-origin postMessage for the client during development
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+  next();
+});
 // Serve uploaded files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
@@ -28,6 +36,11 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/admin', require('./routes/adminrouter'));
 app.use('/Patient', require('./routes/Patientrouter'));
 app.use('/hospital', require('./routes/hospitalrouter'));
+
+// Compatibility alias: some clients call /auth/admin/login — map to admin router
+app.use('/auth/admin', require('./routes/adminrouter'));
+app.use('/auth/hospital', require('./routes/hospitalrouter'));
+app.use('/auth/patient', require('./routes/Patientrouter'));
 
 
 // Multer and general error handler

@@ -1,7 +1,7 @@
 import api from './api';
 
 // Prefer environment-configured API URL. Falls back to api.BASE_URL (api.js)
-const API_BASE = process.env.REACT_APP_API_URL || api.BASE_URL || 'http://localhost:5000';
+const API_BASE = process.env.REACT_APP_API_URL || api.BASE_URL || 'http://localhost:3500';
 let _user = null;
 let _token = null;
 

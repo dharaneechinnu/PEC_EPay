@@ -4,13 +4,13 @@ const router = express.Router();
 const admincontroller = require("../controllers/admincontroller")
 
 
-// AdminDonor registration, admin login, create scholarship
+// Donor registration, admin login, create scholarship
 router.post('/register', admincontroller.registerAdminDonorRequest);
 router.post('/login', admincontroller.Loginadmin);
 router.post('/createscholarship', admincontroller.createScholarship);
 router.get('/getAllApplications/:adminId', admincontroller.getAllApplications);
 
-// Get applications by admin (AdminDonor) who created the scholarship
+// Get applications by admin (donor) who created the scholarship
 // GET /admin/applications/by-admin/:adminId?page=1&limit=25&status=&scholarshipId=
 router.get('/applications/by-admin/:adminId', admincontroller.getApplicationsByAdminId);
 
@@ -51,7 +51,7 @@ router.post('/applications/:applicationId/verify-payment', admincontroller.verif
 // GET /admin/transactions/search?q=&adminId=&applicationId=&status=&page=&limit=
 router.get('/transactions/search', admincontroller.searchTransactions);
 
-// GET transactions for a specific admin (AdminDonor)
+// GET transactions for a specific admin (donor)
 // Example: GET /admin/transactions/admin/:adminId?q=transfer_123&page=1&limit=25
 router.get('/transactions/admin/:adminId', admincontroller.getTransactionsByAdminId);
 

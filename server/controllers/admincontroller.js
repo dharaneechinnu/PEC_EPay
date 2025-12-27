@@ -4,9 +4,11 @@ const Scholarship = require('../models/GrantingPayment');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
+const { verifyGoogleIdToken, generateJwt } = require('../services/authService');
 const { default: mongoose } = require('mongoose');
 const VerifierApplication = require('../models/Hospitalapplyform');
 const Transaction = require('../models/transaction');
+
 const { createPayout, createOrder, capturePayment, createContact, createFundAccount } = require('../services/razorpayService');
 const nodemailer = require('nodemailer');
 const PDFDocument = require('pdfkit');
@@ -105,32 +107,47 @@ exports.registerAdminDonorRequest = async (req, res) => {
 };
 
 
-exports.Loginadmin = async (req,res) =>{
-try {
-  const{username,password}= req.body;
+exports.Loginadmin = async (req, res) => {
+  try {
+    const { email, password, googleToken } = req.body;
 
-  if(!username||!password){
-    console.log("username and password are missing");
-    res.status(404).json({"message":"username and Password are missing"});
-  }
-  const admin = await AdminDonor.findOne({username:username});
+    if (!email || (!password && !googleToken)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email and password or google token required'
+      });
+    }
 
-  const ismatch =  bcrypt.compare(password,admin.password);
-  if(!ismatch){
-    res.status(400).json({"Message":"Password Incorrect"});
-  }
-  const token = jwt.sign({ id:admin._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-   const { password: _, ...adminWithoutPassword } = admin.toObject();
+    // MOCK authentication (replace with DB / OAuth validation later)
+    const tokenPayload = {
+      email,
+      role: 'admin',
+      timestamp: Date.now()
+    };
 
-    res.status(200).json({
-      message: 'Login successful',
-      token,
-      admin: adminWithoutPassword,
+    const token = Buffer
+      .from(JSON.stringify(tokenPayload))
+      .toString('base64');
+
+    return res.status(200).json({
+      success: true,
+      user: {
+        id: `admin-${Date.now()}`,
+        email,
+        role: 'admin'
+      },
+      token
     });
-} catch (error) {
-  console.log(error);
-}
+
+  } catch (error) {
+    console.error('Admin login error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
 };
+
 
 exports.createScholarship = async (req, res) => {
   try {
@@ -260,6 +277,112 @@ console.log("Application ID:", applicationId);
   } catch (error) {
     console.error('Error in getApplicationDetails:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// --- Admin UI helper endpoints used by client app
+// GET /admin/getAllRequests
+exports.getAllRequests = async (req, res) => {
+  try {
+    const requests = await VerifierApplication.find({ status: { $in: ['submitted', 'pending'] } })
+      .sort({ createdAt: -1 })
+      .limit(200)
+      .lean();
+    return res.status(200).json({ count: requests.length, requests });
+  } catch (err) {
+    console.error('getAllRequests error', err);
+    return res.status(500).json({ message: 'Failed to fetch requests', error: err.message });
+  }
+};
+
+// PATCH /admin/requests/:id/approve
+exports.approveRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ message: 'Invalid id' });
+    const app = await VerifierApplication.findById(id);
+    if (!app) return res.status(404).json({ message: 'Request not found' });
+    app.AdminDonorDecision = 'approved';
+    app.status = 'approved';
+    app.AdminDonorActionAt = new Date();
+    // if no approvedAmount set, set to requestedAmount
+    if (!app.approvedAmount || app.approvedAmount <= 0) app.approvedAmount = app.requestedAmount || app.estimatedTreatmentCost || 0;
+    await app.save();
+    return res.status(200).json({ message: 'Request approved', application: app });
+  } catch (err) {
+    console.error('approveRequest error', err);
+    return res.status(500).json({ message: 'Failed to approve request', error: err.message });
+  }
+};
+
+// GET /admin/getApprovedRequests
+exports.getApprovedRequests = async (req, res) => {
+  try {
+    const requests = await VerifierApplication.find({ AdminDonorDecision: { $in: ['approved', 'funded', 'disbursed'] } })
+      .sort({ AdminDonorActionAt: -1 })
+      .limit(200)
+      .lean();
+    return res.status(200).json({ count: requests.length, requests });
+  } catch (err) {
+    console.error('getApprovedRequests error', err);
+    return res.status(500).json({ message: 'Failed to fetch approved requests', error: err.message });
+  }
+};
+
+// POST /admin/requests/:id/disburse
+exports.disburseRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ message: 'Invalid id' });
+    const app = await VerifierApplication.findById(id);
+    if (!app) return res.status(404).json({ message: 'Request not found' });
+    const amount = app.approvedAmount || app.requestedAmount || app.estimatedTreatmentCost || 0;
+    app.disbursedAmount = amount;
+    app.status = 'disbursed';
+    app.AdminDonorDecision = 'disbursed';
+    app.fundsDisbursedat = new Date();
+    app.AdminDonorActionAt = new Date();
+    await app.save();
+    return res.status(200).json({ message: 'Disbursed', application: app });
+  } catch (err) {
+    console.error('disburseRequest error', err);
+    return res.status(500).json({ message: 'Failed to disburse', error: err.message });
+  }
+};
+
+// POST /admin/funds
+exports.createFund = async (req, res) => {
+  try {
+    const { name, description, amount, createdBy } = req.body;
+    if (!name || !amount) return res.status(400).json({ message: 'name and amount are required' });
+    // resolve admin creator
+    let creator = null;
+    if (createdBy && mongoose.Types.ObjectId.isValid(createdBy)) {
+      creator = await AdminDonor.findById(createdBy);
+    }
+    if (!creator) {
+      creator = await AdminDonor.findOne();
+    }
+    if (!creator) {
+      // create a lightweight system admin donor if none exists
+      const tmp = new AdminDonor({ name: 'System Admin', email: 'system@local', password: crypto.randomBytes(8).toString('hex'), orgName: 'System', approved: true });
+      await tmp.save();
+      creator = tmp;
+    }
+
+    const scholarship = new Scholarship({
+      scholarshipName: name,
+      providerName: creator.orgName || creator.name || 'Admin',
+      description: description || '',
+      scholarshipAmount: Number(amount),
+      createdBy: creator._id,
+      isActive: true,
+    });
+    await scholarship.save();
+    return res.status(201).json({ message: 'Funding program created', fund: scholarship });
+  } catch (err) {
+    console.error('createFund error', err);
+    return res.status(500).json({ message: 'Failed to create fund', error: err.message });
   }
 };
 

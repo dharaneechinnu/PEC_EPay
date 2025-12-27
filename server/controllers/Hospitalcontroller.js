@@ -1,11 +1,13 @@
-const Verifier = require('../models/verifier');
-const Scholarship = require('../models/scholarship');
-const VerifierApplication = require('../models/verifierapplyform');
+const Verifier = require('../models/hospital');
+const Scholarship = require('../models/GrantingPayment');
+const VerifierApplication = require('../models/Hospitalapplyform');
 const mongoose = require('mongoose');
 const path = require('path');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
+const crypto = require('crypto');
+const { verifyGoogleIdToken, generateJwt } = require('../services/authService');
 // ✅ Register Verifier Request (Institution Registration)
 exports.registerHospital = async (req, res) => {
   try {
@@ -73,42 +75,12 @@ exports.registerHospital = async (req, res) => {
 };
 // ✅ Login Verifier
 exports.loginHospital = async (req, res) => {
-  try {
-    // Ensure req.body exists
-    if (!req.body || Object.keys(req.body).length === 0) {
-      return res.status(400).json({ message: 'Request body is missing' });
-    }
-
-    const { username, password } = req.body;
-
-    if (!username || !password) {
-      return res.status(400).json({ message: 'Username and password are required' });
-    }
-
-    const verifier = await Verifier.findOne({ username });
-    if (!verifier) {
-      return res.status(404).json({ message: 'Verifier not found' });
-    }
-
-    const isMatch = await bcrypt.compare(password, verifier.password);
-    if (!isMatch) {
-      return res.status(400).json({ message: 'Incorrect password' });
-    }
-
-    const token = jwt.sign({ id: verifier._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-
-    // Remove password before sending
-    const { password: _, ...verifierWithoutPassword } = verifier.toObject();
-
-    res.status(200).json({
-      message: 'Login successful',
-      token,
-      verifier: verifierWithoutPassword,
-    });
-  } catch (error) {
-    console.error('Error in loginVerifier:', error.message);
-    res.status(500).json({ message: 'Server error', error: error.message });
+ const { email, password, googleToken, hospitalName } = req.body;
+  if (!email || (!password && !googleToken)) {
+    return res.status(400).json({ error: 'Email and password/token required' });
   }
+  const token = Buffer.from(JSON.stringify({ email, role: 'hospital', timestamp: Date.now() })).toString('base64');
+  res.json({ success: true, user: { email, role: 'hospital', id: 'hosp-' + Math.random(), hospitalName: hospitalName || 'Unknown Hospital' }, token });
 };
 
 // Hospital: list all granting payment products

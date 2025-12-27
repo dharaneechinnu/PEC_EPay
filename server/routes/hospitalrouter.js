@@ -7,29 +7,29 @@ const upload = require('../middleware/upload');
 
 
 // Hospital registration with emergency credit platform
-router.post('/register', verifierController.registerVerifierRequest);
+router.post('/register', verifierController.registerHospital);
 
 // Hospital authentication
-router.post('/login', verifierController.loginVerifier);
+router.post('/login', verifierController.loginHospital);
 
 // Emergency Credit Request Management
-router.get('/emergency-credit-options', verifierController.viewAllScholarships); // View available credit products
+router.get('/emergency-credit-options', verifierController.listGrantingPayments); // View available credit products
 
 // Initiate emergency credit request for patient treatment
-router.post('/emergency-credit-request', verifierController.applyForScholarship);
+router.post('/emergency-credit-request', verifierController.createEmergencyRequest);
 
 // Check emergency credit request status
-router.get('/credit-request/:requestId', verifierController.viewapplicationbyid);
+router.get('/credit-request/:requestId', verifierController.getRequestById);
 
 // Get all credit requests by hospital (with pagination)
-router.get('/credit-requests', verifierController.getApplicationStatus);
+router.get('/credit-requests', verifierController.getRequestStatus);
 
 // Upload patient documents, medical records for credit approval
-router.post('/upload-medical-docs/:requestId', upload.array('documents', 10), verifierController.uploadDocuments);
+router.post('/upload-medical-docs/:requestId', upload.array('documents', 10), verifierController.uploadMedicalDocs);
 
 // Emergency Credit Workflow Endpoints
-router.get('/credit-status/:requestId', verifierController.getApplicationStatus);
-router.post('/credit-disbursement-confirm/:requestId', verifierController.applyForScholarship);
-router.get('/repayment-schedule/:requestId', verifierController.viewapplicationbyid);
+router.get('/credit-status/:requestId', verifierController.getRequestStatus);
+router.post('/credit-disbursement-confirm/:requestId', verifierController.createEmergencyRequest);
+router.get('/repayment-schedule/:requestId', verifierController.getRequestById);
 
 module.exports = router;
