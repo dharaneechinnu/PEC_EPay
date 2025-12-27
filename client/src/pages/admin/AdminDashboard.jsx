@@ -4,36 +4,77 @@ import authService from '../../services/authService';
 import PendingRequests from './PendingRequests';
 import CreateFundingProgram from './CreateFundingProgram';
 import Disbursements from './Disbursements';
+import HospitalVerification from './HospitalVerification';
+import CreditMonitor from './CreditMonitor';
+import './AdminDashboard.css';
 
-export default function AdminDashboard(){
+export default function AdminDashboard() {
   const [active, setActive] = useState('pending');
   const navigate = useNavigate();
+  const user = authService.getUser();
+
+  const menuItems = [
+    { id: 'pending', label: 'Pending Requests', icon: '📋' },
+    { id: 'disburse', label: 'Disbursements', icon: '💰' },
+    { id: 'create', label: 'Create Program', icon: '➕' },
+    { id: 'verify', label: 'Hospital Verification', icon: '🏥' },
+    { id: 'credit', label: 'Credit Monitor', icon: '📊' },
+  ];
 
   const renderContent = () => {
-    switch(active){
+    switch(active) {
       case 'pending': return <PendingRequests />;
       case 'create': return <CreateFundingProgram />;
       case 'disburse': return <Disbursements />;
+      case 'verify': return <HospitalVerification />;
+      case 'credit': return <CreditMonitor />;
       default: return <PendingRequests />;
     }
   };
 
+  const handleLogout = async () => {
+    await authService.logout();
+    navigate('/login');
+  };
+
   return (
-    <div style={{display:'flex',minHeight:'100vh'}}>
-      <aside style={{width:240,padding:18,background:'#fff',borderRight:'1px solid #e6f2ff'}}>
-        <div style={{fontSize:18,fontWeight:700,color:'#007bff',marginBottom:12}}>Admin Panel</div>
-        <button style={{display:'block',marginBottom:8}} onClick={()=>setActive('pending')}>Pending Requests</button>
-        <button style={{display:'block',marginBottom:8}} onClick={()=>setActive('disburse')}>Disbursements</button>
-        <button style={{display:'block'}} onClick={()=>setActive('create')}>Create Funding Program</button>
-      </aside>
-      <main style={{flex:1}}>
-        <header style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:16,borderBottom:'1px solid #eef6ff'}}>
-          <div />
-          <div>
-            <button style={{padding:'8px 12px',background:'#007bff',color:'#fff',border:'none',borderRadius:8,cursor:'pointer'}} onClick={async () => { await authService.logout(); navigate('/login'); }}>Logout</button>
+    <div className="admin-dashboard">
+      <aside className="admin-sidebar">
+        <div className="admin-sidebar-header">
+          <h2 className="admin-logo">Admin Panel</h2>
+          <div className="admin-user-info">
+            {user?.email && (
+              <span className="admin-user-email">{user.email}</span>
+            )}
           </div>
+        </div>
+        <nav className="admin-nav">
+          {menuItems.map(item => (
+            <button
+              key={item.id}
+              className={`admin-nav-item ${active === item.id ? 'active' : ''}`}
+              onClick={() => setActive(item.id)}
+            >
+              <span className="admin-nav-icon">{item.icon}</span>
+              <span className="admin-nav-label">{item.label}</span>
+            </button>
+          ))}
+        </nav>
+        <div className="admin-sidebar-footer">
+          <button className="admin-logout-btn" onClick={handleLogout}>
+            <span>🚪</span> Logout
+          </button>
+        </div>
+      </aside>
+      <main className="admin-main">
+        <header className="admin-header">
+          <h1 className="admin-page-title">
+            {menuItems.find(item => item.id === active)?.label || 'Dashboard'}
+          </h1>
         </header>
-        {renderContent()}
+        <div className="admin-content">
+          {renderContent()}
+        </div>
       </main>
     </div>
   );

@@ -1,24 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import hospitalService from '../../services/hospitalService';
+import { useNavigate } from 'react-router-dom';
+import patientService from '../../services/patientService';
 import authService from '../../services/authService';
 import Loader from '../../components/Loader';
-import './HospitalPages.css';
+import '../hospital/HospitalPages.css';
 import '../admin/AdminPages.css';
 
 export default function CreateRequest() {
+  const navigate = useNavigate();
   const user = authService.getUser();
   const [scholarships, setScholarships] = useState([]);
   const [form, setForm] = useState({
     scholarshipId: '',
-    studentname: '',
-    studentemail: '',
+    studentname: user?.name || '',
+    studentemail: user?.email || '',
     gender: '',
-    institutionname: user?.hospitalName || '',
+    institutionname: '',
     classoryear: '',
     familyIncome: '',
-    fundedraised: '',
     requestedAmount: '',
-    firstGenGraduate: false,
+    hospitalName: '',
+    isAccident: false,
     remarks: '',
     payoutDetails: {
       accountHolderName: '',
@@ -43,7 +45,7 @@ export default function CreateRequest() {
   const fetchScholarships = async () => {
     setLoadingScholarships(true);
     try {
-      const res = await hospitalService.listGrantingPayments();
+      const res = await patientService.getScholarships();
       setScholarships(res.scholarships || []);
     } catch (err) {
       setError(err.message || 'Failed to load funding programs');
@@ -97,26 +99,19 @@ export default function CreateRequest() {
     setError('');
 
     try {
-      // Get verifierId from user or localStorage - you may need to adjust this based on your auth
-      const verifierId = user?.id || user?.verifierId || 'temp-verifier-id'; // TODO: Get actual verifierId
-      
-      // Get AdminDonorid from selected scholarship
       const selectedScholarship = scholarships.find(s => s._id === form.scholarshipId);
-      const AdminDonorid = selectedScholarship?.createdBy?._id || selectedScholarship?.createdBy || 'temp-admin-id';
-
+      
       const payload = {
-        verifierId,
         scholarshipId: form.scholarshipId,
-        AdminDonorid,
         studentname: form.studentname,
         studentemail: form.studentemail,
         gender: form.gender,
-        institutionname: form.institutionname,
+        institutionname: form.hospitalName || form.institutionname,
+        hospitalName: form.hospitalName,
         classoryear: form.classoryear,
         familyIncome: Number(form.familyIncome),
-        fundedraised: Number(form.fundedraised || form.requestedAmount),
         requestedAmount: Number(form.requestedAmount),
-        firstGenGraduate: form.firstGenGraduate,
+        fundedraised: Number(form.requestedAmount),
         remarks: form.remarks,
         payoutDetails: {
           accountHolderName: form.payoutDetails.accountHolderName,
@@ -125,46 +120,48 @@ export default function CreateRequest() {
           bankName: form.payoutDetails.bankName,
           email: form.payoutDetails.email,
           phone: form.payoutDetails.phone,
-          beneficiaryVerified: false,
         },
       };
 
-      const res = await hospitalService.createEmergencyRequest(payload);
-      setCreatedApplicationId(res.application?._id || res.applicationId);
-      setMessage('Request created successfully! You can now upload documents.');
+      const res = await patientService.createFundingRequest(payload);
+      setCreatedApplicationId(res.application?._id);
+      setMessage('Request created successfully! Uploading documents...');
 
       // Upload documents if any
       if (selectedFiles.length > 0 && res.application?._id) {
         await uploadDocuments(res.application._id);
+      } else {
+        setMessage('Request created successfully! You can upload documents later.');
       }
 
-      // Reset form
-      setForm({
-        scholarshipId: '',
-        studentname: '',
-        studentemail: '',
-        gender: '',
-        institutionname: user?.hospitalName || '',
-        classoryear: '',
-        familyIncome: '',
-        fundedraised: '',
-        requestedAmount: '',
-        firstGenGraduate: false,
-        remarks: '',
-        payoutDetails: {
-          accountHolderName: '',
-          accountNumber: '',
-          ifsc: '',
-          bankName: '',
-          email: '',
-          phone: '',
-        },
-      });
-      setSelectedFiles([]);
+      // Reset form after 3 seconds and redirect
       setTimeout(() => {
+        setForm({
+          scholarshipId: '',
+          studentname: user?.name || '',
+          studentemail: user?.email || '',
+          gender: '',
+          institutionname: '',
+          classoryear: '',
+          familyIncome: '',
+          requestedAmount: '',
+          hospitalName: '',
+          isAccident: false,
+          remarks: '',
+          payoutDetails: {
+            accountHolderName: '',
+            accountNumber: '',
+            ifsc: '',
+            bankName: '',
+            email: '',
+            phone: '',
+          },
+        });
+        setSelectedFiles([]);
         setMessage('');
         setCreatedApplicationId(null);
-      }, 5000);
+        navigate('/patient');
+      }, 3000);
     } catch (err) {
       setError(err.message || 'Failed to create request');
       setTimeout(() => setError(''), 5000);
@@ -177,33 +174,45 @@ export default function CreateRequest() {
     if (selectedFiles.length === 0) return;
 
     const formData = new FormData();
-    selectedFiles.forEach((file, index) => {
+    selectedFiles.forEach((file) => {
       formData.append('documents', file);
-      // Add document metadata (FIR, accident proof, etc.)
-      const docMeta = {
-        docType: file.name.toLowerCase().includes('fir') ? 'FIR' : 
-                 file.name.toLowerCase().includes('accident') ? 'Accident Proof' : 
-                 'Medical Document',
-        verified: false,
-      };
-      formData.append(`documents[${index}][docType]`, docMeta.docType);
     });
 
+    // Add document metadata - specify FIR for accidents, other for regular documents
+    const docMeta = selectedFiles.map((file, index) => {
+      const fileName = file.name.toLowerCase();
+      let docType = 'Document';
+      if (form.isAccident && fileName.includes('fir')) {
+        docType = 'FIR';
+      } else if (form.isAccident && (fileName.includes('accident') || fileName.includes('proof'))) {
+        docType = 'Accident Proof';
+      } else if (fileName.includes('medical')) {
+        docType = 'Medical Document';
+      } else if (fileName.includes('report')) {
+        docType = 'Medical Report';
+      }
+      return { docType };
+    });
+
+    formData.append('documents', JSON.stringify(docMeta));
+
     try {
-      await hospitalService.uploadPatientDocuments(applicationId, formData);
+      await patientService.uploadDocuments(applicationId, formData);
       setMessage('Request and documents uploaded successfully!');
     } catch (err) {
       console.error('Document upload failed:', err);
-      setError('Request created but document upload failed. You can upload documents later.');
+      setMessage('Request created but document upload failed. You can upload documents later.');
     }
   };
 
   return (
-    <div className="hospital-page-container admin-page-container">
+    <div className="hospital-page-container admin-page-container" style={{ padding: '32px' }}>
       <div className="hospital-page-header admin-page-header">
         <div>
-          <h2 className="hospital-page-heading admin-page-heading">Create Emergency Request</h2>
-          <p className="hospital-page-subtitle admin-page-subtitle">Create a funding request for a patient</p>
+          <h2 className="hospital-page-heading admin-page-heading">Create Funding Request</h2>
+          <p className="hospital-page-subtitle admin-page-subtitle">
+            Submit a funding request with required documents (FIR for accidents)
+          </p>
         </div>
       </div>
 
@@ -264,20 +273,20 @@ export default function CreateRequest() {
                   value={form.studentname}
                   onChange={handleChange}
                   className="form-input"
-                  placeholder="Enter patient name"
+                  placeholder="Enter your name"
                   required
                 />
               </div>
 
               <div className="form-group">
-                <label className="form-label">Patient Email *</label>
+                <label className="form-label">Email *</label>
                 <input
                   type="email"
                   name="studentemail"
                   value={form.studentemail}
                   onChange={handleChange}
                   className="form-input"
-                  placeholder="patient@example.com"
+                  placeholder="your@email.com"
                   required
                 />
               </div>
@@ -301,14 +310,14 @@ export default function CreateRequest() {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Institution/Hospital Name *</label>
+                <label className="form-label">Hospital Name *</label>
                 <input
                   type="text"
-                  name="institutionname"
-                  value={form.institutionname}
+                  name="hospitalName"
+                  value={form.hospitalName}
                   onChange={handleChange}
                   className="form-input"
-                  placeholder="Hospital name"
+                  placeholder="Hospital/Institution name"
                   required
                 />
               </div>
@@ -342,33 +351,31 @@ export default function CreateRequest() {
               </div>
             </div>
 
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">Requested Amount (₹) *</label>
-                <input
-                  type="number"
-                  name="requestedAmount"
-                  value={form.requestedAmount}
-                  onChange={handleChange}
-                  className="form-input"
-                  placeholder="100000"
-                  min="1"
-                  required
-                />
-              </div>
+            <div className="form-group">
+              <label className="form-label">Requested Amount (₹) *</label>
+              <input
+                type="number"
+                name="requestedAmount"
+                value={form.requestedAmount}
+                onChange={handleChange}
+                className="form-input"
+                placeholder="100000"
+                min="1"
+                required
+              />
+            </div>
 
-              <div className="form-group">
-                <label className="form-label">Funds Raised (₹)</label>
+            <div className="form-group">
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                 <input
-                  type="number"
-                  name="fundedraised"
-                  value={form.fundedraised}
+                  type="checkbox"
+                  name="isAccident"
+                  checked={form.isAccident}
                   onChange={handleChange}
-                  className="form-input"
-                  placeholder="0"
-                  min="0"
+                  style={{ width: 'auto' }}
                 />
-              </div>
+                <span>This is an accident case (FIR required)</span>
+              </label>
             </div>
 
             <div className="form-group">
@@ -378,7 +385,7 @@ export default function CreateRequest() {
                 value={form.remarks}
                 onChange={handleChange}
                 className="form-textarea"
-                placeholder="Additional notes about the patient's condition..."
+                placeholder="Additional information about your situation..."
                 rows="3"
               />
             </div>
@@ -473,7 +480,9 @@ export default function CreateRequest() {
           </div>
 
           <div className="form-section">
-            <h3 className="form-section-title">Patient Documents (FIR, Accident Proof, Medical Records)</h3>
+            <h3 className="form-section-title">
+              Documents {form.isAccident && '(FIR Copy Required for Accidents)'}
+            </h3>
             
             <div
               className="file-upload-area"
@@ -481,8 +490,16 @@ export default function CreateRequest() {
               onDragOver={handleDragOver}
             >
               <div className="file-upload-icon">📄</div>
-              <div className="file-upload-text">Drop files here or click to upload</div>
-              <div className="file-upload-hint">FIR, Accident Proof, Medical Records (PDF, JPG, PNG - Max 5MB each)</div>
+              <div className="file-upload-text">
+                {form.isAccident 
+                  ? 'Drop FIR copy and other documents here or click to upload'
+                  : 'Drop documents here or click to upload'}
+              </div>
+              <div className="file-upload-hint">
+                {form.isAccident 
+                  ? 'FIR Copy (required), Medical Reports, Accident Proof (PDF, JPG, PNG - Max 5MB each)'
+                  : 'Medical Documents, Reports (PDF, JPG, PNG - Max 5MB each)'}
+              </div>
               <input
                 type="file"
                 multiple
@@ -518,6 +535,12 @@ export default function CreateRequest() {
                 ))}
               </div>
             )}
+
+            {form.isAccident && selectedFiles.length === 0 && (
+              <div className="alert" style={{ background: '#fef3c7', color: '#92400e', marginTop: '16px' }}>
+                ⚠️ Please upload FIR copy for accident cases
+              </div>
+            )}
           </div>
 
           <div className="form-actions">
@@ -526,41 +549,19 @@ export default function CreateRequest() {
               className="btn btn-primary btn-large"
               disabled={loading}
             >
-              {loading ? <Loader /> : '➕ Create Request'}
+              {loading ? <Loader /> : '➕ Submit Funding Request'}
             </button>
             <button
               type="button"
               className="btn btn-secondary btn-large"
-              onClick={() => {
-                setForm({
-                  scholarshipId: '',
-                  studentname: '',
-                  studentemail: '',
-                  gender: '',
-                  institutionname: user?.hospitalName || '',
-                  classoryear: '',
-                  familyIncome: '',
-                  fundedraised: '',
-                  requestedAmount: '',
-                  firstGenGraduate: false,
-                  remarks: '',
-                  payoutDetails: {
-                    accountHolderName: '',
-                    accountNumber: '',
-                    ifsc: '',
-                    bankName: '',
-                    email: '',
-                    phone: '',
-                  },
-                });
-                setSelectedFiles([]);
-              }}
+              onClick={() => navigate('/patient')}
             >
-              Clear Form
+              Cancel
             </button>
           </div>
-    </form>
+        </form>
       </div>
     </div>
   );
 }
+

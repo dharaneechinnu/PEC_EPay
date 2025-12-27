@@ -17,8 +17,14 @@ const PatientDashboard = () => {
         <section>
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:20}}>
             <div style={{border:'1px solid #bde0ff',padding:16,borderRadius:10}}>
-              <h3 style={{color:'#00a2ff'}}>View Requests</h3>
-              <p>See status of emergency funding requests, donor decisions and payouts.</p>
+              <h3 style={{color:'#00a2ff'}}>Create Funding Request</h3>
+              <p>Submit a new funding request with documents (FIR for accidents, medical reports).</p>
+              <button style={{padding:'8px 12px',background:'#00a2ff',color:'#fff',border:'none',borderRadius:8,cursor:'pointer'}} onClick={()=>navigate('/patient/create-request')}>Create Request</button>
+            </div>
+
+            <div style={{border:'1px solid #bde0ff',padding:16,borderRadius:10}}>
+              <h3 style={{color:'#00a2ff'}}>View My Requests</h3>
+              <p>See status of your emergency funding requests, approval decisions and payouts.</p>
               <button style={{padding:'8px 12px',background:'#00a2ff',color:'#fff',border:'none',borderRadius:8,cursor:'pointer'}} onClick={()=>navigate('/patient')}>View Requests</button>
             </div>
 

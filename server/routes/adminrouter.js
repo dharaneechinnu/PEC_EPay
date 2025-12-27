@@ -59,4 +59,23 @@ router.get('/transactions/admin/:adminId', admincontroller.getTransactionsByAdmi
 // POST /admin/applications/:applicationId/create-beneficiary
 router.post('/applications/:applicationId/create-beneficiary', admincontroller.createBeneficiaryForApplication);
 
+// Admin UI helper endpoints
+// GET /admin/getAllRequests
+router.get('/getAllRequests', admincontroller.getAllRequests);
+
+// PATCH /admin/requests/:id/approve
+router.patch('/requests/:id/approve', admincontroller.approveRequest);
+
+// PATCH /admin/requests/:id/reject
+router.patch('/requests/:id/reject', admincontroller.rejectRequest);
+
+// GET /admin/getApprovedRequests
+router.get('/getApprovedRequests', admincontroller.getApprovedRequests);
+
+// POST /admin/requests/:id/disburse
+router.post('/requests/:id/disburse', admincontroller.disburseRequest);
+
+// POST /admin/funds
+router.post('/funds', admincontroller.createFund);
+
 module.exports = router;

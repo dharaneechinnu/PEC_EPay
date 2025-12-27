@@ -315,6 +315,26 @@ exports.approveRequest = async (req, res) => {
   }
 };
 
+// PATCH /admin/requests/:id/reject
+exports.rejectRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { remarks } = req.body;
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ message: 'Invalid id' });
+    const app = await VerifierApplication.findById(id);
+    if (!app) return res.status(404).json({ message: 'Request not found' });
+    app.AdminDonorDecision = 'rejected';
+    app.status = 'rejected';
+    app.AdminDonorActionAt = new Date();
+    if (remarks) app.AdminDonorRemarks = remarks;
+    await app.save();
+    return res.status(200).json({ message: 'Request rejected', application: app });
+  } catch (err) {
+    console.error('rejectRequest error', err);
+    return res.status(500).json({ message: 'Failed to reject request', error: err.message });
+  }
+};
+
 // GET /admin/getApprovedRequests
 exports.getApprovedRequests = async (req, res) => {
   try {

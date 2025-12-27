@@ -19,7 +19,7 @@ mongoose.connect(MONGODB_URL)
   });
 
 // Middleware
-app.use(cors({ origin: ['http://localhost:3000'], credentials: true }));
+app.use(cors());
 app.use(express.json());
 
 // Set permissive COOP/COEP headers for local dev (helps with postMessage from popups/one-tap)

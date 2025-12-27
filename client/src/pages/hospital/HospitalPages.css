@@ -1,0 +1,197 @@
+/* Hospital Pages Shared Styles - Reuse admin styles with hospital theme */
+.hospital-page-container {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.hospital-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
+.hospital-page-heading {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 8px 0;
+  letter-spacing: -0.5px;
+}
+
+.hospital-page-subtitle {
+  font-size: 15px;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* Reuse admin styles */
+.hospital-page-container .alert,
+.hospital-page-container .empty-state,
+.hospital-page-container .admin-cards-grid,
+.hospital-page-container .admin-card,
+.hospital-page-container .form-group,
+.hospital-page-container .form-input,
+.hospital-page-container .form-textarea,
+.hospital-page-container .form-select,
+.hospital-page-container .form-label,
+.hospital-page-container .btn {
+  /* All styles from AdminPages.css apply */
+}
+
+/* File upload styles */
+.file-upload-area {
+  border: 2px dashed #d1d5db;
+  border-radius: 8px;
+  padding: 32px;
+  text-align: center;
+  background: #f9fafb;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.file-upload-area:hover {
+  border-color: #059669;
+  background: #f0fdf4;
+}
+
+.file-upload-area.dragover {
+  border-color: #059669;
+  background: #ecfdf5;
+}
+
+.file-upload-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.file-upload-text {
+  font-size: 15px;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+
+.file-upload-hint {
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.file-list {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.file-item-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.file-item-icon {
+  font-size: 24px;
+}
+
+.file-item-details {
+  flex: 1;
+}
+
+.file-item-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1f2937;
+  margin-bottom: 4px;
+}
+
+.file-item-size {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.file-item-remove {
+  padding: 6px 12px;
+  background: #fee2e2;
+  color: #991b1b;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.file-item-remove:hover {
+  background: #fecaca;
+}
+
+/* Document preview */
+.document-preview {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.document-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.document-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.document-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.document-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1f2937;
+  margin-bottom: 8px;
+  word-break: break-word;
+}
+
+.document-type {
+  font-size: 12px;
+  color: #6b7280;
+  padding: 4px 8px;
+  background: #f3f4f6;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.document-view-btn {
+  margin-top: 12px;
+  padding: 6px 12px;
+  background: #059669;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  width: 100%;
+}
+
+.document-view-btn:hover {
+  background: #047857;
+}
+

@@ -27,6 +27,9 @@ router.get('/credit-requests', verifierController.getRequestStatus);
 // Upload patient documents, medical records for credit approval
 router.post('/upload-medical-docs/:requestId', upload.array('documents', 10), verifierController.uploadMedicalDocs);
 
+// Patient upload documents (FIR, accident proof, etc.) - Alias for upload-medical-docs
+router.post('/upload-patient-docs/:requestId', upload.array('documents', 10), verifierController.uploadMedicalDocs);
+
 // Emergency Credit Workflow Endpoints
 router.get('/credit-status/:requestId', verifierController.getRequestStatus);
 router.post('/credit-disbursement-confirm/:requestId', verifierController.createEmergencyRequest);

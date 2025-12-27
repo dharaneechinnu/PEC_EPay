@@ -10,6 +10,7 @@ import HospitalDashboard from '../pages/hospital/HospitalDashboard';
 import CreateRequest from '../pages/hospital/CreateRequest';
 import RequestStatus from '../pages/hospital/RequestStatus';
 import PatientDashboard from '../pages/patient/PatientDashboard';
+import PatientCreateRequest from '../pages/patient/CreateRequest';
 import Repayment from '../pages/patient/Repayment';
 import AdminDashboard from '../pages/admin/AdminDashboard';
 import HospitalVerification from '../pages/admin/HospitalVerification';
@@ -31,6 +32,7 @@ export default function AppRoutes(){
       <Route path="/hospital/status" element={<ProtectedRoute role="hospital"><RequestStatus/></ProtectedRoute>} />
 
       <Route path="/patient" element={<ProtectedRoute role="patient"><PatientDashboard/></ProtectedRoute>} />
+      <Route path="/patient/create-request" element={<ProtectedRoute role="patient"><PatientCreateRequest/></ProtectedRoute>} />
       <Route path="/patient/repayment" element={<ProtectedRoute role="patient"><Repayment/></ProtectedRoute>} />
 
       <Route path="/admin" element={<ProtectedRoute role="admin"><AdminDashboard/></ProtectedRoute>} />
