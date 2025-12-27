@@ -2,6 +2,9 @@ import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import Landing from '../pages/common/Landing';
 import Login from '../pages/common/Login';
+import AdminLogin from '../pages/common/AdminLogin';
+import HospitalLogin from '../pages/common/HospitalLogin';
+import PatientLogin from '../pages/common/PatientLogin';
 import Unauthorized from '../pages/common/Unauthorized';
 import HospitalDashboard from '../pages/hospital/HospitalDashboard';
 import CreateRequest from '../pages/hospital/CreateRequest';
@@ -18,6 +21,9 @@ export default function AppRoutes(){
     <Routes>
       <Route path="/" element={<Landing/>} />
       <Route path="/login" element={<Login/>} />
+      <Route path="/login/admin" element={<AdminLogin/>} />
+      <Route path="/login/hospital" element={<HospitalLogin/>} />
+      <Route path="/login/patient" element={<PatientLogin/>} />
       <Route path="/unauthorized" element={<Unauthorized/>} />
 
       <Route path="/hospital" element={<ProtectedRoute role="hospital"><HospitalDashboard/></ProtectedRoute>} />

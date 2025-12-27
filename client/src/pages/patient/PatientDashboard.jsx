@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import authService from '../../services/authService';
 
 const PatientDashboard = () => {
   const navigate = useNavigate();
@@ -10,7 +11,7 @@ const PatientDashboard = () => {
       <div style={{maxWidth:1000,margin:'0 auto',background:'#fff',border:'1px solid #dceeff',borderRadius:12,padding:30}}>
         <header style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20,borderBottom:'1px solid #e8f4ff',paddingBottom:12}}>
           <h1 style={{margin:0,color:'#00a2ff'}}>Patient Dashboard</h1>
-          <button style={{padding:'8px 12px',background:'#00a2ff',color:'#fff',border:'none',borderRadius:8,cursor:'pointer'}} onClick={() => { localStorage.removeItem('token'); navigate('/login'); }}>{token ? 'Logout' : 'Login'}</button>
+          <button style={{padding:'8px 12px',background:'#00a2ff',color:'#fff',border:'none',borderRadius:8,cursor:'pointer'}} onClick={async () => { await authService.logout(); navigate('/login'); }}>{token ? 'Logout' : 'Login'}</button>
         </header>
 
         <section>
