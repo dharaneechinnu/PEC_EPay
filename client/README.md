@@ -1,3 +1,9 @@
+# Medical Emergency Fund — Frontend (Development)
+
+This frontend is adapted for a Medical Emergency Fund app that helps hospitals and patients get instant emergency funding, reduces payment delays from insurers/donors, and lets admins manage verifications and disbursements.
+
+---
+
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
