@@ -1,13 +1,13 @@
-const Verifier = require('../models/hospital');
-const Scholarship = require('../models/GrantingPayment');
-const VerifierApplication = require('../models/Hospitalapplyform');
+const Verifier = require('../models/verifier');
+const Scholarship = require('../models/scholarship');
+const VerifierApplication = require('../models/verifierapplyform');
 const mongoose = require('mongoose');
 const path = require('path');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 // ✅ Register Verifier Request (Institution Registration)
-exports.registerVerifierRequest = async (req, res) => {
+exports.registerHospital = async (req, res) => {
   try {
     // Accept either camelCase `contactPerson` or legacy `contactperson` from clients
     const {
@@ -72,7 +72,7 @@ exports.registerVerifierRequest = async (req, res) => {
   }
 };
 // ✅ Login Verifier
-exports.loginVerifier = async (req, res) => {
+exports.loginHospital = async (req, res) => {
   try {
     // Ensure req.body exists
     if (!req.body || Object.keys(req.body).length === 0) {
@@ -111,8 +111,8 @@ exports.loginVerifier = async (req, res) => {
   }
 };
 
-// Verifier: view all scholarships
-exports.viewAllScholarships = async (req, res) => {
+// Hospital: list all granting payment products
+exports.listGrantingPayments = async (req, res) => {
   try {
     // Optional query param: onlyActive=true to filter active scholarships
     const  onlyActive  = true;
@@ -131,8 +131,8 @@ exports.viewAllScholarships = async (req, res) => {
   }
 };
 
-// Verifier: apply for a scholarship on behalf of a student (JSON only)
-exports.applyForScholarship = async (req, res) => {
+// Hospital: create an emergency credit request (JSON only)
+exports.createEmergencyRequest = async (req, res) => {
   try {
     const data = req.body;
 
@@ -313,7 +313,7 @@ exports.applyForScholarship = async (req, res) => {
   }
 };
 
-exports.viewapplicationbyid = async (req, res) => {
+exports.getRequestById = async (req, res) => {
   try {
     // ✅ Use query instead of body for GET requests
     const { applicationId } = req.query;
@@ -343,7 +343,7 @@ console.log('Application fetched:', application);
   }
 };
 // Verifier: upload documents for an existing application (form-data with files)
-exports.uploadDocuments = async (req, res) => {
+exports.uploadMedicalDocs = async (req, res) => {
   try {
     // Accept applicationId from URL param or request body
     const applicationId = req.params.applicationId || req.body.applicationId;
@@ -408,7 +408,7 @@ exports.uploadDocuments = async (req, res) => {
 // Usage:
 // - GET /.../?applicationId=...  -> returns single application
 // - GET /.../?verifierId=...    -> returns all applications for verifier (paginated optional)
-exports.getApplicationStatus = async (req, res) => {
+exports.getRequestStatus = async (req, res) => {
   try {
     const { applicationId, verifierId, page = 1, limit = 25 } = req.query;
 
