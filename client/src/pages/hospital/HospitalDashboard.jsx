@@ -4,25 +4,29 @@ import authService from '../../services/authService';
 import CreateRequest from './CreateRequest';
 import RequestStatus from './RequestStatus';
 import Transactions from './Transactions';
+import HospitalVerification from './HospitalVerification';
+import FundingDashboard from './FundingDashboard';
 import './HospitalDashboard.css';
 
 export default function HospitalDashboard() {
-  const [active, setActive] = useState('create');
+  const [active, setActive] = useState('verification');
   const navigate = useNavigate();
   const user = authService.getUser();
 
   const menuItems = [
-    { id: 'create', label: 'Create Request', icon: '➕' },
-    { id: 'status', label: 'Request Status', icon: '📋' },
-    { id: 'transactions', label: 'Transactions', icon: '💰' },
+    { id: 'verification', label: 'Hospital Verification', icon: '🏥' },
+    { id: 'funding', label: 'Funding Dashboard', icon: '📊' },
+  
   ];
 
   const renderContent = () => {
     switch(active) {
+      case 'verification': return <HospitalVerification />;
+      case 'funding': return <FundingDashboard />;
       case 'create': return <CreateRequest />;
       case 'status': return <RequestStatus />;
       case 'transactions': return <Transactions />;
-      default: return <CreateRequest />;
+      default: return <HospitalVerification />;
     }
   };
 

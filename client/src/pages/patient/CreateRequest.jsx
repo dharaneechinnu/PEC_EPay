@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import patientService from '../../services/patientService';
+import hospitalService from '../../services/hospitalService';
 import authService from '../../services/authService';
 import Loader from '../../components/Loader';
 import '../hospital/HospitalPages.css';
@@ -10,11 +11,17 @@ export default function CreateRequest() {
   const navigate = useNavigate();
   const user = authService.getUser();
   const [scholarships, setScholarships] = useState([]);
+  const [verifiedHospitals, setVerifiedHospitals] = useState([]);
+  const [selectedHospitalId, setSelectedHospitalId] = useState('');
+  const searchTimer = useRef(null);
+  const [hospitalSearch, setHospitalSearch] = useState('');
+  const [showHospitalDropdown, setShowHospitalDropdown] = useState(false);
   const [form, setForm] = useState({
     scholarshipId: '',
-    studentname: user?.name || '',
-    studentemail: user?.email || '',
+    patientname: user?.name || '',
+    patientemail: user?.email || '',
     gender: '',
+    emergencyType: '',
     institutionname: '',
     classoryear: '',
     familyIncome: '',
@@ -40,6 +47,8 @@ export default function CreateRequest() {
 
   useEffect(() => {
     fetchScholarships();
+    // populate an initial small list
+    fetchVerifiedHospitals('');
   }, []);
 
   const fetchScholarships = async () => {
@@ -53,6 +62,20 @@ export default function CreateRequest() {
       setLoadingScholarships(false);
     }
   };
+
+  // search verified hospitals (server-side) by query
+  const fetchVerifiedHospitals = async (q = '') => {
+    try {
+      const res = await hospitalService.getVerifiedHospitals(q, { limit: 50 });
+      setVerifiedHospitals(res.hospitals || []);
+    } catch (err) {
+      console.error('Failed to load verified hospitals:', err);
+      setError('Failed to load verified hospitals. Please try again later.');
+    }
+  };
+
+  // For server-side search we display the list returned by backend
+  const filteredHospitals = verifiedHospitals;
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -98,16 +121,25 @@ export default function CreateRequest() {
     setMessage('');
     setError('');
 
+    // Validate hospital selection — require selected hospital id from autocomplete
+    if (!selectedHospitalId) {
+      setError('Please select a verified hospital from the dropdown');
+      setLoading(false);
+      return;
+    }
+
     try {
-      const selectedScholarship = scholarships.find(s => s._id === form.scholarshipId);
+      const selectedScholarship = (scholarships || []).find(s => s._id === form.scholarshipId);
       
       const payload = {
         scholarshipId: form.scholarshipId,
-        studentname: form.studentname,
-        studentemail: form.studentemail,
+        patientname: form.patientname,
+        patientemail: form.patientemail,
+        emergencyType: form.emergencyType,
         gender: form.gender,
         institutionname: form.hospitalName || form.institutionname,
         hospitalName: form.hospitalName,
+        hospitalId: selectedHospitalId,
         classoryear: form.classoryear,
         familyIncome: Number(form.familyIncome),
         requestedAmount: Number(form.requestedAmount),
@@ -138,14 +170,16 @@ export default function CreateRequest() {
       setTimeout(() => {
         setForm({
           scholarshipId: '',
-          studentname: user?.name || '',
-          studentemail: user?.email || '',
+          patientname: user?.name || '',
+          patientemail: user?.email || '',
           gender: '',
+          emergencyType: '',
           institutionname: '',
           classoryear: '',
           familyIncome: '',
           requestedAmount: '',
           hospitalName: '',
+          hospitalId: '',
           isAccident: false,
           remarks: '',
           payoutDetails: {
@@ -158,6 +192,7 @@ export default function CreateRequest() {
           },
         });
         setSelectedFiles([]);
+        setSelectedHospitalId('');
         setMessage('');
         setCreatedApplicationId(null);
         navigate('/patient');
@@ -178,12 +213,12 @@ export default function CreateRequest() {
       formData.append('documents', file);
     });
 
-    // Add document metadata - specify FIR for accidents, other for regular documents
+    // Add document metadata - specify Document for accidents, other for regular documents
     const docMeta = selectedFiles.map((file, index) => {
       const fileName = file.name.toLowerCase();
       let docType = 'Document';
-      if (form.isAccident && fileName.includes('fir')) {
-        docType = 'FIR';
+      if (form.isAccident && (fileName.includes('fir') || fileName.includes('document'))) {
+        docType = 'Document';
       } else if (form.isAccident && (fileName.includes('accident') || fileName.includes('proof'))) {
         docType = 'Accident Proof';
       } else if (fileName.includes('medical')) {
@@ -211,7 +246,7 @@ export default function CreateRequest() {
         <div>
           <h2 className="hospital-page-heading admin-page-heading">Create Funding Request</h2>
           <p className="hospital-page-subtitle admin-page-subtitle">
-            Submit a funding request with required documents (FIR for accidents)
+            Submit a funding request with required documents (Document for accidents)
           </p>
         </div>
       </div>
@@ -235,31 +270,7 @@ export default function CreateRequest() {
 
       <div className="admin-form-container">
         <form className="admin-form" onSubmit={handleSubmit}>
-          <div className="form-section">
-            <h3 className="form-section-title">Funding Program</h3>
-            
-            <div className="form-group">
-              <label className="form-label">Select Funding Program *</label>
-              {loadingScholarships ? (
-                <Loader />
-              ) : (
-                <select
-                  name="scholarshipId"
-                  value={form.scholarshipId}
-                  onChange={handleChange}
-                  className="form-select"
-                  required
-                >
-                  <option value="">-- Select a program --</option>
-                  {scholarships.map(sch => (
-                    <option key={sch._id} value={sch._id}>
-                      {sch.scholarshipName} - ₹{sch.scholarshipAmount?.toLocaleString('en-IN')}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-          </div>
+     
 
           <div className="form-section">
             <h3 className="form-section-title">Patient Information</h3>
@@ -269,8 +280,8 @@ export default function CreateRequest() {
                 <label className="form-label">Patient Name *</label>
                 <input
                   type="text"
-                  name="studentname"
-                  value={form.studentname}
+                  name="patientname"
+                  value={form.patientname}
                   onChange={handleChange}
                   className="form-input"
                   placeholder="Enter your name"
@@ -282,8 +293,8 @@ export default function CreateRequest() {
                 <label className="form-label">Email *</label>
                 <input
                   type="email"
-                  name="studentemail"
-                  value={form.studentemail}
+                  name="patientemail"
+                  value={form.patientemail}
                   onChange={handleChange}
                   className="form-input"
                   placeholder="your@email.com"
@@ -310,16 +321,101 @@ export default function CreateRequest() {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Hospital Name *</label>
-                <input
-                  type="text"
-                  name="hospitalName"
-                  value={form.hospitalName}
+                <label className="form-label">Emergency Type *</label>
+                <select
+                  name="emergencyType"
+                  value={form.emergencyType}
                   onChange={handleChange}
-                  className="form-input"
-                  placeholder="Hospital/Institution name"
+                  className="form-select"
                   required
-                />
+                >
+                  <option value="">-- Select emergency type --</option>
+                  <option value="cardiac">Cardiac</option>
+                  <option value="trauma">Trauma</option>
+                  <option value="surgery">Surgery</option>
+                  <option value="icu">ICU</option>
+                  <option value="cancer">Cancer</option>
+                  <option value="neurological">Neurological</option>
+                  <option value="pediatric">Pediatric</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Hospital Name *</label>
+                {verifiedHospitals.length === 0 ? (
+                  <div className="hospital-unavailable">
+                    <div className="alert alert-warning">
+                      ⚠️ No verified hospitals are currently available. Please contact admin for hospital verification.
+                    </div>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="No verified hospitals available"
+                      disabled
+                      style={{ cursor: 'not-allowed', opacity: 0.6 }}
+                    />
+                  </div>
+                ) : (
+                  <div className="hospital-selector">
+                    <div className="hospital-search-wrapper">
+                      <input
+                        type="text"
+                        value={hospitalSearch}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setHospitalSearch(v);
+                          setShowHospitalDropdown(true);
+                          if (searchTimer.current) clearTimeout(searchTimer.current);
+                          searchTimer.current = setTimeout(() => fetchVerifiedHospitals(v), 300);
+                        }}
+                        onFocus={() => {
+                          setShowHospitalDropdown(true);
+                          if (!hospitalSearch) fetchVerifiedHospitals('');
+                        }}
+                        className="form-input"
+                        placeholder="Search for verified hospital..."
+                        required
+                      />
+                      {showHospitalDropdown && filteredHospitals.length > 0 && (
+                        <div className="hospital-dropdown">
+                          {filteredHospitals.map((hospital) => (
+                            <div
+                              key={hospital._id}
+                              className="hospital-option"
+                              onClick={() => {
+                                setForm({ ...form, hospitalName: hospital.institutionName });
+                                setSelectedHospitalId(hospital._id);
+                                setHospitalSearch(hospital.institutionName);
+                                setShowHospitalDropdown(false);
+                              }}
+                            >
+                              <div className="hospital-name">{hospital.institutionName}</div>
+                              {hospital.hospitalAddress && (
+                                <div className="hospital-address">
+                                  📍 {hospital.hospitalAddress.city}, {hospital.hospitalAddress.state}
+                                </div>
+                              )}
+                              {hospital.emergencyServices && hospital.emergencyServices.length > 0 && (
+                                <div className="hospital-services">
+                                  🏥 {hospital.emergencyServices.slice(0, 3).map(service => 
+                                    service.charAt(0).toUpperCase() + service.slice(1)
+                                  ).join(', ')}
+                                  {hospital.emergencyServices.length > 3 && ' ...'}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {hospitalSearch && !filteredHospitals.some(h => h.institutionName === hospitalSearch) && (
+                      <div className="hospital-warning">
+                        ⚠️ Please select from verified hospitals only
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -374,7 +470,7 @@ export default function CreateRequest() {
                   onChange={handleChange}
                   style={{ width: 'auto' }}
                 />
-                <span>This is an accident case (FIR required)</span>
+                <span>This is an accident case (Document required)</span>
               </label>
             </div>
 
@@ -480,9 +576,9 @@ export default function CreateRequest() {
           </div>
 
           <div className="form-section">
-            <h3 className="form-section-title">
-              Documents {form.isAccident && '(FIR Copy Required for Accidents)'}
-            </h3>
+              <h3 className="form-section-title">
+                Documents {form.isAccident && '(Document Required for Accidents)'}
+              </h3>
             
             <div
               className="file-upload-area"
@@ -490,16 +586,8 @@ export default function CreateRequest() {
               onDragOver={handleDragOver}
             >
               <div className="file-upload-icon">📄</div>
-              <div className="file-upload-text">
-                {form.isAccident 
-                  ? 'Drop FIR copy and other documents here or click to upload'
-                  : 'Drop documents here or click to upload'}
-              </div>
-              <div className="file-upload-hint">
-                {form.isAccident 
-                  ? 'FIR Copy (required), Medical Reports, Accident Proof (PDF, JPG, PNG - Max 5MB each)'
-                  : 'Medical Documents, Reports (PDF, JPG, PNG - Max 5MB each)'}
-              </div>
+              <div className="file-upload-text">Drop documents here or click to upload</div>
+              <div className="file-upload-hint">Medical Documents, Reports, Accident Proof (PDF, JPG, PNG - Max 5MB each)</div>
               <input
                 type="file"
                 multiple
@@ -538,7 +626,7 @@ export default function CreateRequest() {
 
             {form.isAccident && selectedFiles.length === 0 && (
               <div className="alert" style={{ background: '#fef3c7', color: '#92400e', marginTop: '16px' }}>
-                ⚠️ Please upload FIR copy for accident cases
+                ⚠️ Please upload Document for accident cases
               </div>
             )}
           </div>

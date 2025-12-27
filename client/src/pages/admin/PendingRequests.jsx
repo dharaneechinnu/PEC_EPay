@@ -152,15 +152,7 @@ export default function PendingRequests() {
                   <span className="admin-info-label">Application ID:</span>
                   <span className="admin-info-value">{request._id?.slice(-8) || 'N/A'}</span>
                 </div>
-                
-                {request.scholarshipId && (
-                  <div className="admin-info-row">
-                    <span className="admin-info-label">Scholarship:</span>
-                    <span className="admin-info-value">
-                      {request.scholarshipId.scholarshipName || request.scholarshipId.title || 'N/A'}
-                    </span>
-                  </div>
-                )}
+            
 
                 {request.requestedAmount && (
                   <div className="admin-info-row">

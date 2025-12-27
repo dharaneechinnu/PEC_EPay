@@ -39,13 +39,63 @@ export default function PaymentModal({ request, onClose, onSuccess }) {
         }
       }
 
-      // Make payout to hospital
-      await adminService.makePayout(request._id);
-      onSuccess();
+      // Create Razorpay order
+      const orderResponse = await adminService.createOrder(request._id);
+      
+      // Open Razorpay checkout
+      const options = {
+        key: orderResponse.key, // Razorpay key from server
+        amount: orderResponse.order.amount,
+        currency: orderResponse.order.currency,
+        name: 'EPay Medical Funding',
+        description: `Payment to ${request.payoutDetails?.accountHolderName || 'Hospital'}`,
+        order_id: orderResponse.order.id,
+        handler: async function (response) {
+          try {
+            // Verify payment on server
+            await adminService.verifyPayment(request._id, {
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_signature: response.razorpay_signature,
+            });
+            
+            // After verification, make payout to hospital
+            await adminService.makePayout(request._id);
+            onSuccess();
+          } catch (verifyErr) {
+            setError(verifyErr.message || 'Payment verification failed');
+            setTimeout(() => setError(''), 5000);
+          } finally {
+            setLoading(false);
+          }
+        },
+        prefill: {
+          name: 'EPay Admin',
+          email: 'admin@epay.com',
+        },
+        theme: {
+          color: '#00a2ff',
+        },
+        modal: {
+          ondismiss: function() {
+            setLoading(false);
+            setError('Payment was cancelled');
+            setTimeout(() => setError(''), 3000);
+          }
+        }
+      };
+
+      // Check if Razorpay is loaded
+      if (typeof window.Razorpay !== 'undefined') {
+        const rzp = new window.Razorpay(options);
+        rzp.open();
+      } else {
+        throw new Error('Razorpay SDK not loaded');
+      }
+
     } catch (err) {
       setError(err.message || 'Payment failed');
       setTimeout(() => setError(''), 5000);
-    } finally {
       setLoading(false);
     }
   };

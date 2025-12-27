@@ -6,6 +6,7 @@ import './AdminPages.css';
 export default function Disbursements() {
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [processingApps, setProcessingApps] = useState(new Set());
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
@@ -28,18 +29,136 @@ export default function Disbursements() {
     fetchApproved();
   }, []);
 
-  const handleDisburse = async (id) => {
-    if (!window.confirm('Are you sure you want to disburse funds for this application?')) {
+  const handleDisburse = async (app) => {
+    const amount = app.approvedAmount || app.requestedAmount || app.fundedraised;
+    const hospitalName = app.payoutDetails?.accountHolderName || app.institutionname || 'Hospital';
+    
+    if (!amount || amount <= 0) {
+      setError('Invalid disbursement amount');
+      setTimeout(() => setError(''), 5000);
       return;
     }
+
+    if (!window.confirm(`Are you sure you want to disburse ₹${Number(amount).toLocaleString('en-IN')} to ${hospitalName}?`)) {
+      return;
+    }
+
+    setProcessingApps(prev => new Set(prev).add(app._id));
+    setError('');
+
     try {
-      await adminService.disburseRequest(id);
-      setMessage('Funds disbursed successfully!');
-      setTimeout(() => setMessage(''), 3000);
-      fetchApproved();
+      // Ensure beneficiary exists
+      if (!app.payoutDetails?.beneficiaryId) {
+        setMessage('🔄 Setting up bank account details...');
+        try {
+          await adminService.createBeneficiary(app._id, {
+            name: app.payoutDetails?.accountHolderName || hospitalName,
+            email: app.payoutDetails?.email || app.studentemail,
+            contact: app.payoutDetails?.phone || '9999999999',
+            account_number: app.payoutDetails?.accountNumber || '',
+            ifsc: app.payoutDetails?.ifsc || '',
+          });
+          // Refresh the application data after beneficiary creation
+          await fetchApproved();
+        } catch (beneficiaryErr) {
+          console.warn('Beneficiary creation failed, proceeding:', beneficiaryErr);
+        }
+      }
+
+      setMessage('🔄 Creating payment order...');
+      // Create Razorpay order for disbursement
+      const orderResponse = await adminService.createOrder(app._id);
+      
+      setMessage('💳 Opening Razorpay payment gateway...');
+      // Open Razorpay checkout
+      const options = {
+        key: orderResponse.key, // Razorpay key from server
+        amount: orderResponse.order.amount,
+        currency: orderResponse.order.currency,
+        name: 'E-Pay Medical Emergency',
+        description: `Disbursement to ${hospitalName}`,
+        order_id: orderResponse.order.id,
+        handler: async function (response) {
+          setMessage('🔄 Processing payment verification...');
+          try {
+            // Verify payment on server
+            await adminService.verifyPayment(app._id, {
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_signature: response.razorpay_signature,
+            });
+            
+            setMessage('✅ Payment verified! Processing disbursement...');
+            
+            // After verification, make direct payout to hospital
+            try {
+              await adminService.makePayout(app._id);
+              setMessage('🎉 Disbursement completed successfully! Professional receipts have been sent to patient and hospital.');
+            } catch (payoutErr) {
+              setMessage('⚠️ Payment verified but payout failed. Manual intervention may be required.');
+              console.error('Payout error:', payoutErr);
+            }
+            
+            setTimeout(() => {
+              setMessage('');
+              fetchApproved(); // Refresh the list
+            }, 6000);
+            
+          } catch (verifyErr) {
+            setError(verifyErr.message || 'Payment verification failed');
+            setTimeout(() => setError(''), 5000);
+          } finally {
+            setProcessingApps(prev => {
+              const newSet = new Set(prev);
+              newSet.delete(app._id);
+              return newSet;
+            });
+          }
+        },
+        prefill: {
+          name: 'E-Pay Admin',
+          email: 'admin@epaymedical.com',
+        },
+        notes: {
+          application_id: app._id,
+          patient_name: app.patientname || app.studentname,
+          hospital_name: hospitalName,
+          emergency_type: app.emergencyType || 'medical'
+        },
+        theme: {
+          color: '#2563eb',
+        },
+        modal: {
+          ondismiss: function() {
+            setProcessingApps(prev => {
+              const newSet = new Set(prev);
+              newSet.delete(app._id);
+              return newSet;
+            });
+            setMessage('');
+            setError('Payment was cancelled');
+            setTimeout(() => setError(''), 3000);
+          }
+        }
+      };
+
+      // Check if Razorpay is loaded
+      if (typeof window.Razorpay !== 'undefined') {
+        const rzp = new window.Razorpay(options);
+        rzp.open();
+      } else {
+        throw new Error('Razorpay SDK not loaded. Please refresh the page.');
+      }
+
     } catch (err) {
       setError(err.message || 'Disbursement failed');
       setTimeout(() => setError(''), 5000);
+      setProcessingApps(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(app._id);
+        return newSet;
+      });
+      setMessage('');
     }
   };
 
@@ -89,13 +208,19 @@ export default function Disbursements() {
 
       {message && (
         <div className="alert alert-success">
-          {message}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>✅</span>
+            <span>{message}</span>
+          </div>
         </div>
       )}
 
       {error && (
         <div className="alert alert-error">
-          {error}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>⚠️</span>
+            <span>{error}</span>
+          </div>
         </div>
       )}
 
@@ -166,6 +291,51 @@ export default function Disbursements() {
                   </div>
                 )}
 
+                {app.payoutDetails && (
+                  <div className="admin-info-section">
+                    <div className="admin-info-row">
+                      <span className="admin-info-label">Account Holder:</span>
+                      <span className="admin-info-value">{app.payoutDetails.accountHolderName || 'N/A'}</span>
+                    </div>
+                    <div className="admin-info-row">
+                      <span className="admin-info-label">Account Number:</span>
+                      <span className="admin-info-value">
+                        {app.payoutDetails.accountNumber ? 
+                          `****${app.payoutDetails.accountNumber.slice(-4)}` : 'N/A'}
+                      </span>
+                    </div>
+                    <div className="admin-info-row">
+                      <span className="admin-info-label">IFSC Code:</span>
+                      <span className="admin-info-value">{app.payoutDetails.ifsc || 'N/A'}</span>
+                    </div>
+                    {app.payoutDetails.beneficiaryId && (
+                      <div className="admin-info-row">
+                        <span className="admin-info-label">Beneficiary ID:</span>
+                        <span className="admin-info-value">
+                          <code style={{ fontSize: '12px' }}>{app.payoutDetails.beneficiaryId.slice(-8)}</code>
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {app.emergencyType && (
+                  <div className="admin-info-row">
+                    <span className="admin-info-label">Emergency Type:</span>
+                    <span className="admin-info-value">
+                      <span style={{ 
+                        background: '#fef3c7', 
+                        color: '#d97706', 
+                        padding: '2px 6px', 
+                        borderRadius: '4px',
+                        fontSize: '12px'
+                      }}>
+                        🚨 {app.emergencyType}
+                      </span>
+                    </span>
+                  </div>
+                )}
+
                 <div className="admin-info-row">
                   <span className="admin-info-label">Approved Date:</span>
                   <span className="admin-info-value">{formatDate(app.AdminDonorActionAt || app.createdAt)}</span>
@@ -183,10 +353,14 @@ export default function Disbursements() {
                 {app.AdminDonorDecision !== 'disbursed' && app.status !== 'disbursed' ? (
                   <button
                     className="btn btn-primary"
-                    onClick={() => handleDisburse(app._id)}
-                    disabled={loading}
+                    onClick={() => handleDisburse(app)}
+                    disabled={processingApps.has(app._id)}
                   >
-                    💰 Make Disbursement
+                    {processingApps.has(app._id) ? (
+                      <>⏳ Processing...</>
+                    ) : (
+                      <>💳 Pay via Razorpay</>
+                    )}
                   </button>
                 ) : (
                   <div className="admin-info-value" style={{ color: '#059669', fontWeight: 600 }}>

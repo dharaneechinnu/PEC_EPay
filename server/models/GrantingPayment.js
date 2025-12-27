@@ -121,11 +121,19 @@ const scholarshipSchema = new mongoose.Schema(
 );
 
 
+// Register the schema with both names for compatibility
 let GrantingPayment;
+let Scholarship;
 try {
   GrantingPayment = mongoose.model('GrantingPayment');
 } catch (e) {
   GrantingPayment = mongoose.model('GrantingPayment', scholarshipSchema);
+}
+
+try {
+  Scholarship = mongoose.model('Scholarship');
+} catch (e) {
+  Scholarship = mongoose.model('Scholarship', scholarshipSchema);
 }
 
 module.exports = GrantingPayment;

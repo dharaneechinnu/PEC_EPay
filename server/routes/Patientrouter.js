@@ -24,4 +24,16 @@ router.post('/upload-documents/:requestId', upload.array('documents', 10), stude
 // Get patient's requests
 router.get('/my-requests', studentController.getMyRequests);
 
+// Quick status by application id: /patient/requeststatus/:id
+router.get('/requeststatus/:id', studentController.getRequestStatusById);
+
+// EMI Routes
+router.post('/generate-emi-pdf', studentController.generateEMIPDF);
+router.post('/create-emi-payment-order', studentController.createEMIPaymentOrder);
+router.post('/verify-emi-payment', studentController.verifyEMIPayment);
+router.get('/emi-history/:requestId', studentController.getEMIHistory);
+
+// Test routes
+router.get('/test-razorpay', studentController.testRazorpay);
+
 module.exports = router;

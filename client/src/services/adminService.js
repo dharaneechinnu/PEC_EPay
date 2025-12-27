@@ -131,6 +131,22 @@ async function getTransactionsByAdminId(adminId, { q, page = 1, limit = 25 } = {
   return api.request(`/admin/transactions/admin/${adminId}?${params}`);
 }
 
+// Hospital Verification
+async function getPendingHospitalVerifications() {
+  return api.request('/admin/hospital-verifications/pending');
+}
+
+async function updateHospitalVerification(hospitalId, data) {
+  return api.request(`/admin/hospital-verifications/${hospitalId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data)
+  });
+}
+
+async function getHospitalVerificationDetails(hospitalId) {
+  return api.request(`/admin/hospital-verifications/${hospitalId}`);
+}
+
 export default {
   login,
   register,
@@ -154,4 +170,7 @@ export default {
   resendReceipt,
   searchTransactions,
   getTransactionsByAdminId,
+  getPendingHospitalVerifications,
+  updateHospitalVerification,
+  getHospitalVerificationDetails,
 };

@@ -35,4 +35,14 @@ router.get('/credit-status/:requestId', verifierController.getRequestStatus);
 router.post('/credit-disbursement-confirm/:requestId', verifierController.createEmergencyRequest);
 router.get('/repayment-schedule/:requestId', verifierController.getRequestById);
 
+// Hospital Verification Routes
+router.get('/verification-status', verifierController.getVerificationStatus);
+router.post('/submit-verification', upload.array('documents', 10), verifierController.submitVerification);
+router.get('/verified-list', verifierController.getVerifiedHospitalsList);
+
+// Hospital Dashboard Routes
+router.get('/funding-requests', verifierController.getHospitalFundingRequests);
+router.get('/transactions', verifierController.getHospitalTransactions);
+router.get('/funding-summary', verifierController.getHospitalFundingSummary);
+
 module.exports = router;

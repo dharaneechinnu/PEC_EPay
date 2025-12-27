@@ -3,6 +3,16 @@ const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const path = require('path');
+
+// Import models to ensure they're registered
+require('./models/AdminDonor');
+require('./models/GrantingPayment');
+require('./models/hospital');
+require('./models/Hospitalapplyform');
+require('./models/transaction');
+require('./models/user');
+require('./models/EMI');
+
 const PORT = process.env.PORT || 3500;
 const MONGODB_URL = process.env.MONGO_URL;
 
@@ -13,13 +23,32 @@ const app = express();
 mongoose.connect(MONGODB_URL)
   .then(() => {
     console.log('Database is connected');
+    
+    // Initialize receipt hooks after database connection
+    const { setupTransactionReceiptHooks } = require('./services/transactionReceiptService');
+    setupTransactionReceiptHooks();
   })
   .catch((err) => {
     console.error('Error connecting to the database:', err.message);
   });
 
 // Middleware
-app.use(cors());
+// Allow any origin but echo the request origin in the response so credentialed requests are supported.
+const corsOptions = {
+  origin: true, // reflect request origin
+  credentials: true,
+  methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
+  allowedHeaders: ['Content-Type','Authorization','Accept'],
+};
+
+app.use(cors(corsOptions));
+// Don't call app.options with '*' (path parsing bug in some environments). Use a generic handler instead.
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    return cors(corsOptions)(req, res, next);
+  }
+  return next();
+});
 app.use(express.json());
 
 // Set permissive COOP/COEP headers for local dev (helps with postMessage from popups/one-tap)
@@ -36,6 +65,16 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/admin', require('./routes/adminrouter'));
 app.use('/Patient', require('./routes/Patientrouter'));
 app.use('/hospital', require('./routes/hospitalrouter'));
+
+// Backwards-compatible explicit route for verification submission.
+// Some dev setups may fail to mount the router; expose the endpoint directly.
+try {
+  const hospitalController = require('./controllers/Hospitalcontroller');
+  const uploadMiddleware = require('./middleware/upload');
+  app.post('/hospital/submit-verification', uploadMiddleware.array('documents', 10), hospitalController.submitVerification);
+} catch (e) {
+  console.warn('Could not attach explicit /hospital/submit-verification route:', e && e.message ? e.message : e);
+}
 
 // Compatibility alias: some clients call /auth/admin/login — map to admin router
 app.use('/auth/admin', require('./routes/adminrouter'));

@@ -8,6 +8,9 @@ const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const { verifyGoogleIdToken, generateJwt } = require('../services/authService');
+
+// Ensure all models are registered
+require('../models/GrantingPayment'); // This will register both GrantingPayment and Scholarship models
 // ✅ Register Verifier Request (Institution Registration)
 exports.registerHospital = async (req, res) => {
   try {
@@ -300,9 +303,9 @@ exports.getRequestById = async (req, res) => {
 
     // ✅ Populate relevant references (ensure correct field names)
     const application = await VerifierApplication.findById(applicationId)
-      .populate('scholarshipId', 'scholarshipName providerName scholarshipAmount applicationDeadline')
-      .populate('studentid', 'name email')
-      .populate('verifierId', 'institutionname contactEmail');
+      .populate('scholarshipId')
+      .populate('studentid')
+      .populate('verifierId');
 
     if (!application) {
       return res.status(404).json({ message: 'Application not found' });
@@ -387,9 +390,9 @@ exports.getRequestStatus = async (req, res) => {
     if (applicationId) {
       if (!mongoose.Types.ObjectId.isValid(applicationId)) return res.status(400).json({ message: 'Invalid applicationId' });
       const application = await VerifierApplication.findById(applicationId)
-        .populate('scholarshipId', 'title description')
-        .populate('studentid', 'name email')
-        .populate('verifierId', 'institutionName contactEmail');
+        .populate('scholarshipId')
+        .populate('studentid')
+        .populate('verifierId');
 
       if (!application) return res.status(404).json({ message: 'Application not found' });
       return res.status(200).json({ application });
@@ -402,8 +405,8 @@ exports.getRequestStatus = async (req, res) => {
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit, 10))
-        .populate('scholarshipId', 'title')
-        .populate('studentid', 'name email');
+        .populate('scholarshipId')
+        .populate('studentid');
 
       const total = await VerifierApplication.countDocuments({ verifierId });
       return res.status(200).json({ total, page: parseInt(page, 10), limit: parseInt(limit, 10), applications });
@@ -412,6 +415,313 @@ exports.getRequestStatus = async (req, res) => {
     return res.status(400).json({ message: 'Provide applicationId or verifierId as query parameter' });
   } catch (error) {
     console.error('Error in getApplicationStatus:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Hospital Verification Functions
+exports.getVerificationStatus = async (req, res) => {
+  try {
+    // For now, get email from query params or body - in production use proper auth middleware
+    const userEmail = req.query.email || req.body.email || req.headers['user-email'];
+    
+    if (!userEmail) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+    
+    const hospital = await Verifier.findOne({ contactEmail: userEmail });
+    if (!hospital) {
+      return res.status(404).json({ message: 'Hospital not found' });
+    }
+
+    res.status(200).json({ 
+      hospital: {
+        verificationStatus: hospital.verificationStatus,
+        institutionName: hospital.institutionName,
+        hospitalAddress: hospital.hospitalAddress,
+        hospitalLicenseNumber: hospital.hospitalLicenseNumber,
+        contactPerson: hospital.contactPerson,
+        contactEmail: hospital.contactEmail,
+        website: hospital.website,
+        emergencyServices: hospital.emergencyServices,
+        verificationRemarks: hospital.verificationRemarks
+      }
+    });
+  } catch (error) {
+    console.error('Error in getVerificationStatus:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+exports.submitVerification = async (req, res) => {
+  try {
+    // For now, get email from query params or body - in production use proper auth middleware  
+    const userEmail = req.query.email || req.body.email || req.headers['user-email'];
+    
+    if (!userEmail) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+    
+    let hospital = await Verifier.findOne({ contactEmail: userEmail });
+
+    // If hospital not found, create a new provisional hospital record
+    if (!hospital) {
+      // Create provisional hospital record with required fields and safe defaults
+      const genCode = `AUTO-${Date.now()}-${Math.floor(Math.random()*9000+1000)}`;
+      hospital = new Verifier({
+        institutionName: req.body.institutionName || 'Unnamed Hospital',
+        contactEmail: userEmail,
+        contactPerson: req.body.contactPerson || req.body.contactperson || 'Unknown',
+        institutionType: req.body.institutionType || 'hospital',
+        institutionCode: req.body.institutionCode || genCode,
+        verificationStatus: 'unverified',
+        approved: false,
+      });
+    }
+
+    // Prevent duplicate pending requests
+    if (hospital.verificationStatus === 'verified') {
+      return res.status(400).json({ message: 'Hospital is already verified' });
+    }
+
+    if (hospital.verificationStatus === 'pending') {
+      return res.status(400).json({ message: 'Verification request is already pending review' });
+    }
+
+    // Parse verification data from form
+    const verificationData = JSON.parse(req.body.verificationData || '{}');
+    
+    // Prepare document data
+    const documents = [];
+    if (req.files && req.files.length > 0) {
+      req.files.forEach(file => {
+        documents.push({
+          type: 'other', // Can be enhanced to detect document type
+          filename: file.filename,
+          originalname: file.originalname,
+          path: file.path,
+          uploadedAt: new Date()
+        });
+      });
+    }
+
+    // Update hospital with verification data
+    hospital.institutionName = verificationData.institutionName || hospital.institutionName;
+    hospital.hospitalAddress = verificationData.hospitalAddress || {};
+    hospital.hospitalLicenseNumber = verificationData.hospitalLicenseNumber;
+    hospital.contactPerson = verificationData.contactPerson || hospital.contactPerson;
+    hospital.contactEmail = verificationData.contactEmail || hospital.contactEmail;
+    hospital.website = verificationData.website;
+    hospital.emergencyServices = verificationData.emergencyServices || [];
+    hospital.verificationDocuments = documents;
+    hospital.verificationStatus = 'pending';
+    hospital.verificationSubmittedAt = new Date();
+
+    // Save new or updated hospital record
+    await hospital.save();
+
+    res.status(200).json({ 
+      message: 'Verification request submitted successfully',
+      hospital: {
+        verificationStatus: hospital.verificationStatus,
+        verificationSubmittedAt: hospital.verificationSubmittedAt
+      }
+    });
+  } catch (error) {
+    console.error('Error in submitVerification:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+exports.getVerifiedHospitalsList = async (req, res) => {
+  try {
+    // Optional search query to support autocomplete on frontend
+    const q = (req.query.q || '').trim();
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+
+    const filter = {
+      verificationStatus: 'verified',
+      approved: true,
+    };
+
+    let hospitalsQuery = Verifier.find(filter).select('institutionName hospitalAddress emergencyServices contactEmail');
+
+    if (q) {
+      // match institutionName or city/state/zip (case-insensitive, partial)
+      const esc = q.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&');
+      const regex = new RegExp(esc, 'i');
+      hospitalsQuery = Verifier.find({
+        ...filter,
+        $or: [
+          { institutionName: { $regex: regex } },
+          { 'hospitalAddress.city': { $regex: regex } },
+          { 'hospitalAddress.state': { $regex: regex } },
+        ],
+      }).select('institutionName hospitalAddress emergencyServices contactEmail');
+    }
+
+    const hospitals = await hospitalsQuery.sort({ institutionName: 1 }).limit(limit).lean();
+
+    res.status(200).json({ count: hospitals.length, hospitals });
+  } catch (error) {
+    console.error('Error in getVerifiedHospitalsList:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Hospital Dashboard: Get funding requests submitted by this hospital
+exports.getHospitalFundingRequests = async (req, res) => {
+  try {
+    const userEmail = req.query.email || req.body.email || req.headers['user-email'];
+    const { page = 1, limit = 25, status } = req.query;
+    
+    if (!userEmail) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+    
+    // Find hospital by email
+    const hospital = await Verifier.findOne({ contactEmail: userEmail });
+    if (!hospital) {
+      return res.status(404).json({ message: 'Hospital not found' });
+    }
+
+    const filter = { verifierId: hospital._id };
+    if (status) filter.status = status;
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const [total, requests] = await Promise.all([
+      VerifierApplication.countDocuments(filter),
+      VerifierApplication.find(filter)
+        .populate('scholarshipId')
+        .populate('studentid')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean()
+    ]);
+
+    res.status(200).json({
+      total,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      requests
+    });
+  } catch (error) {
+    console.error('Error in getHospitalFundingRequests:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Hospital Dashboard: Get transaction history for hospital
+exports.getHospitalTransactions = async (req, res) => {
+  try {
+    const userEmail = req.query.email || req.body.email || req.headers['user-email'];
+    const { page = 1, limit = 25, status } = req.query;
+    
+    if (!userEmail) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+    
+    // Find hospital by email
+    const hospital = await Verifier.findOne({ contactEmail: userEmail });
+    if (!hospital) {
+      return res.status(404).json({ message: 'Hospital not found' });
+    }
+
+    // Get applications for this hospital first
+    const applicationIds = await VerifierApplication.find({ verifierId: hospital._id })
+      .select('_id')
+      .lean();
+    
+    const appIds = applicationIds.map(app => app._id);
+    
+    const filter = { applicationId: { $in: appIds } };
+    if (status) filter.status = status;
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const Transaction = require('../models/transaction');
+    const [total, transactions] = await Promise.all([
+      Transaction.countDocuments(filter),
+      Transaction.find(filter)
+        .populate('applicationId')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean()
+    ]);
+
+    res.status(200).json({
+      total,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      transactions
+    });
+  } catch (error) {
+    console.error('Error in getHospitalTransactions:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Hospital Dashboard: Get funding summary stats
+exports.getHospitalFundingSummary = async (req, res) => {
+  try {
+    const userEmail = req.query.email || req.body.email || req.headers['user-email'];
+    
+    if (!userEmail) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+    
+    // Find hospital by email
+    const hospital = await Verifier.findOne({ contactEmail: userEmail });
+    if (!hospital) {
+      return res.status(404).json({ message: 'Hospital not found' });
+    }
+
+    // Get summary stats
+    const [totalRequests, approvedRequests, fundedRequests, rejectedRequests] = await Promise.all([
+      VerifierApplication.countDocuments({ verifierId: hospital._id }),
+      VerifierApplication.countDocuments({ verifierId: hospital._id, AdminDonorDecision: 'approved' }),
+      VerifierApplication.countDocuments({ verifierId: hospital._id, AdminDonorDecision: { $in: ['funded', 'disbursed'] } }),
+      VerifierApplication.countDocuments({ verifierId: hospital._id, AdminDonorDecision: 'rejected' })
+    ]);
+
+    // Get total funded amount
+    const fundedAmountResult = await VerifierApplication.aggregate([
+      { $match: { verifierId: hospital._id, AdminDonorDecision: { $in: ['funded', 'disbursed'] } } },
+      { $group: { _id: null, totalFunded: { $sum: '$fundedraised' } } }
+    ]);
+    const totalFundedAmount = fundedAmountResult.length > 0 ? fundedAmountResult[0].totalFunded : 0;
+
+    // Get recent transactions count
+    const applicationIds = await VerifierApplication.find({ verifierId: hospital._id })
+      .select('_id')
+      .lean();
+    const appIds = applicationIds.map(app => app._id);
+    
+    const Transaction = require('../models/transaction');
+    const [paidTransactions, processingTransactions] = await Promise.all([
+      Transaction.countDocuments({ applicationId: { $in: appIds }, status: 'paid' }),
+      Transaction.countDocuments({ applicationId: { $in: appIds }, status: { $in: ['processing', 'order_created'] } })
+    ]);
+
+    res.status(200).json({
+      hospital: {
+        name: hospital.institutionName,
+        email: hospital.contactEmail,
+        verificationStatus: hospital.verificationStatus
+      },
+      summary: {
+        totalRequests,
+        approvedRequests,
+        fundedRequests,
+        rejectedRequests,
+        totalFundedAmount,
+        paidTransactions,
+        processingTransactions
+      }
+    });
+  } catch (error) {
+    console.error('Error in getHospitalFundingSummary:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };

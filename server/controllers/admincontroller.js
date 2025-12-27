@@ -406,6 +406,98 @@ exports.createFund = async (req, res) => {
   }
 };
 
+// Hospital verification management for admin
+exports.getPendingHospitalVerifications = async (req, res) => {
+  try {
+    // include unverified and pending records
+    const pending = await require('../models/hospital').find({ verificationStatus: { $in: ['pending', 'unverified'] } }).select('-verificationDocuments').sort({ verificationSubmittedAt: -1 }).lean();
+    return res.status(200).json({ count: pending.length, hospitals: pending });
+  } catch (err) {
+    console.error('getPendingHospitalVerifications error', err);
+    return res.status(500).json({ message: 'Failed to fetch pending verifications', error: err.message });
+  }
+};
+
+// Update hospital verification (approve/reject)
+// PATCH /admin/hospital-verifications/:hospitalId
+exports.updateHospitalVerification = async (req, res) => {
+  try {
+    const { hospitalId } = req.params;
+    // Accept action from multiple possible request shapes (action, status, state, type)
+    let { action, remarks, status, state, type } = req.body || {};
+    action = action || status || state || type || req.query.action;
+    console.log('DEBUG updateHospitalVerification request:', { hospitalId, body: req.body, query: req.query });
+    if (!hospitalId) return res.status(400).json({ message: 'hospitalId is required' });
+    if (!mongoose.Types.ObjectId.isValid(hospitalId)) return res.status(400).json({ message: 'Invalid hospitalId' });
+    // Normalize common action values
+    const act = (action || '').toString().toLowerCase();
+    let normalizedAction = null;
+    const approveVals = new Set(['approve', 'approved', 'verify', 'verified', 'accept', 'accepted']);
+    const rejectVals = new Set(['reject', 'rejected']);
+    if (approveVals.has(act)) normalizedAction = 'approve';
+    if (rejectVals.has(act)) normalizedAction = 'reject';
+    if (!normalizedAction) {
+      console.warn('updateHospitalVerification - invalid action value received:', action);
+      return res.status(400).json({ message: 'Invalid action. Use approve or reject.' });
+    }
+    const Hospital = require('../models/hospital');
+    console.log('DEBUG normalizedAction:', normalizedAction);
+    const hospital = await Hospital.findById(hospitalId);
+    if (!hospital) return res.status(404).json({ message: 'Hospital not found' });
+
+    if (normalizedAction === 'approve') {
+      hospital.verificationStatus = 'verified';
+      hospital.approved = true;
+      hospital.verificationCompletedAt = new Date();
+      hospital.verificationRemarks = remarks || 'Approved by admin';
+    } else if (normalizedAction === 'reject') {
+      hospital.verificationStatus = 'rejected';
+      hospital.approved = false;
+      hospital.verificationCompletedAt = new Date();
+      hospital.verificationRemarks = remarks || 'Rejected by admin';
+    }
+
+    await hospital.save();
+    return res.status(200).json({ message: 'Hospital verification updated', hospital });
+  } catch (err) {
+    console.error('updateHospitalVerification error', err);
+    return res.status(500).json({ message: 'Failed to update verification', error: err.message });
+  }
+};
+
+// Get hospital verification details including uploaded documents
+exports.getHospitalVerificationDetails = async (req, res) => {
+  try {
+    const { hospitalId } = req.params;
+    if (!hospitalId || !mongoose.Types.ObjectId.isValid(hospitalId)) return res.status(400).json({ message: 'Invalid hospitalId' });
+    const Hospital = require('../models/hospital');
+    const hospital = await Hospital.findById(hospitalId).lean();
+    if (!hospital) return res.status(404).json({ message: 'Hospital not found' });
+
+    // Map stored document info to public URLs served at /uploads/verifier
+    const path = require('path');
+    const host = req.get && req.get('host') ? req.get('host') : process.env.HOST || `localhost:${process.env.PORT || 3500}`;
+    const protocol = req.protocol || (process.env.NODE_ENV === 'production' ? 'https' : 'http');
+    const docs = (hospital.verificationDocuments || []).map(doc => {
+      const filename = doc.filename || (doc.path ? path.basename(doc.path) : null);
+      const url = filename ? `${protocol}://${host}/uploads/verifier/${filename}` : null;
+      return {
+        originalname: doc.originalname || filename,
+        filename,
+        url,
+        uploadedAt: doc.uploadedAt || doc.uploadedAt
+      };
+    });
+
+    // Return hospital info with mapped documents
+    hospital.verificationDocuments = docs;
+    return res.status(200).json({ hospital });
+  } catch (err) {
+    console.error('getHospitalVerificationDetails error', err);
+    return res.status(500).json({ message: 'Failed to fetch hospital details', error: err.message });
+  }
+};
+
 
 
 
@@ -591,18 +683,90 @@ exports.makePayoutToVerifier = async (req, res) => {
       });
       // Also mark AdminDonorDecision as funded and record action time
       try {
-        application.AdminDonorDecision = 'funded';
+        // If payout is successful, mark as disbursed instead of just funded
+        if (payoutResp?.status === 'processed' || payoutResp?.status === 'funded') {
+          application.AdminDonorDecision = 'disbursed';
+          application.status = 'disbursed';
+          application.fundsDisbursedat = new Date();
+        } else {
+          application.AdminDonorDecision = 'funded';
+        }
         application.AdminDonorActionAt = new Date();
         // Update fundedraised (store in rupees, add to existing if present)
         const paidPaise = amount || (txnPayload && txnPayload.amount) || 0;
         const paidRupees = Number((paidPaise / 100).toFixed(2));
         application.fundedraised = (Number(application.fundedraised || 0) + paidRupees);
+        // Set disbursed amount if successful payout
+        if (payoutResp?.status === 'processed' || payoutResp?.status === 'funded') {
+          application.disbursedAmount = (Number(application.disbursedAmount || 0) + paidRupees);
+        }
       } catch (setErr) {
         console.warn('Could not update AdminDonorDecision/fundedraised on application:', setErr);
       }
       await application.save();
     } catch (appErr) {
       console.error('Failed to update application payout history:', appErr);
+    }
+
+    // Send professional receipt for direct payout (if successful)
+    if (payoutResp?.status === 'processed' || payoutResp?.status === 'funded') {
+      (async function sendPayoutReceipts() {
+        try {
+          const { generateProfessionalReceipt, generateReceiptNumber } = require('../services/receiptService');
+          const { sendPaymentReceipts } = require('../utils/email');
+
+          // Pull latest application with verifier populated for emails
+          const appPop = await VerifierApplication.findById(application._id)
+            .populate('verifierId', 'contactEmail contactperson institutionname');
+
+          const patientEmail = appPop?.patientemail || appPop?.studentemail || appPop?.student?.email;
+          const hospitalEmail = appPop?.payoutDetails?.email || appPop?.verifierId?.contactEmail;
+
+          // Generate receipt number for payout
+          const receiptNumber = generateReceiptNumber(txn?._id || payoutResp?.id);
+
+          // Prepare receipt data for payout
+          const receiptData = {
+            receiptNumber,
+            transactionId: String(txn?._id || payoutResp?.id || 'DIRECT_PAYOUT'),
+            paymentId: payoutResp?.id || 'N/A',
+            applicationNumber: appPop?.ApplicationNo || String(application._id).slice(-8),
+            amount: amount || 0, // Amount in paise
+            
+            // Patient information
+            patientName: appPop?.patientname || appPop?.studentname || 'Patient',
+            patientEmail: patientEmail || 'N/A',
+            emergencyType: appPop?.emergencyType || 'Medical Emergency',
+            
+            // Hospital information
+            hospitalName: appPop?.institutionname || appPop?.verifierId?.institutionname || 'Hospital',
+            hospitalEmail: hospitalEmail || 'N/A',
+            accountHolderName: appPop?.payoutDetails?.accountHolderName || 'N/A',
+            maskedAccountNumber: appPop?.payoutDetails?.accountNumber ? 
+              `****${appPop.payoutDetails.accountNumber.slice(-4)}` : 'N/A',
+            ifscCode: appPop?.payoutDetails?.ifsc || 'N/A'
+          };
+
+          console.log('📧 Generating payout receipt for:', receiptData.receiptNumber);
+
+          // Generate professional PDF receipt
+          const pdfBuffer = await generateProfessionalReceipt(receiptData);
+
+          // Send receipts to both patient and hospital
+          const emailResults = await sendPaymentReceipts(receiptData, pdfBuffer);
+
+          if (emailResults.success.length > 0) {
+            console.log(`✅ Payout receipts sent successfully to: ${emailResults.success.map(r => r.email).join(', ')}`);
+          }
+          
+          if (emailResults.failed.length > 0) {
+            console.warn(`⚠️ Failed to send payout receipts to: ${emailResults.failed.map(r => r.email).join(', ')}`);
+          }
+
+        } catch (receiptError) {
+          console.error('❌ Error sending payout receipts:', receiptError);
+        }
+      })();
     }
 
     return res.status(200).json({ message: 'Payout initiated', transaction: txn || null, payoutResponse: payoutResp });
@@ -783,101 +947,62 @@ exports.verifyPaymentForApplication = async (req, res) => {
       console.error('Failed to update application AdminDonorDecision to funded:', appUpdateErr);
     }
 
-    // Send receipt emails to student and verifier (best-effort) with PDF attachment
-    (async function sendReceiptsWithPdf() {
+    // Send professional receipt emails to patient and hospital (best-effort) with PDF attachment
+    (async function sendProfessionalReceipts() {
       try {
+        const { generateProfessionalReceipt, generateReceiptNumber } = require('../services/receiptService');
+        const { sendPaymentReceipts } = require('../utils/email');
+
         // Pull latest application with verifier populated for emails
-        const appPop = await VerifierApplication.findById(applicationId).populate('verifierId', 'contactEmail contactperson');
+        const appPop = await VerifierApplication.findById(applicationId)
+          .populate('verifierId', 'contactEmail contactperson institutionname');
 
-        const studentEmail = appPop?.studentemail || appPop?.student?.email || (appPop?.studentid && appPop.studentid.email);
-        const verifierEmail = appPop?.payoutDetails?.email || appPop?.verifierId?.contactEmail;
-  console.log('DEBUG txn.amount (paise):', txn.amount);
-  // txn.amount is stored in the smallest currency unit (paise). Convert to rupees for display.
-  const amountDisplay = Number(((txn.amount || 0) / 100).toFixed(2));
-        const date = new Date().toLocaleString();
+        const patientEmail = appPop?.patientemail || appPop?.studentemail || appPop?.student?.email || (appPop?.studentid && appPop.studentid.email);
+        const hospitalEmail = appPop?.payoutDetails?.email || appPop?.verifierId?.contactEmail;
 
-        const subject = `Scholarship payment receipt — Application ${applicationId}`;
-        const plainText = `Payment successful for Application ${applicationId}\n\nTransaction ID: ${txn._id || txn.paymentId}\nPayment ID: ${txn.paymentId || razorpay_payment_id}\nOrder ID: ${txn.orderId || razorpay_order_id}\nAmount: ₹${amountDisplay}\nDate: ${date}\n\nIf you have questions, contact support.`;
+        // Generate receipt number
+        const receiptNumber = generateReceiptNumber(txn._id);
 
-        // Generate PDF receipt as a Buffer
-        const generatePdfBuffer = () => new Promise((resolve, reject) => {
-          try {
-            const doc = new PDFDocument({ size: 'A4', margin: 50 });
-            const chunks = [];
-            const passthrough = new stream.PassThrough();
-            doc.pipe(passthrough);
-            passthrough.on('data', (chunk) => chunks.push(chunk));
-            passthrough.on('end', () => resolve(Buffer.concat(chunks)));
+        // Prepare receipt data
+        const receiptData = {
+          receiptNumber,
+          transactionId: String(txn._id),
+          paymentId: razorpay_payment_id,
+          applicationNumber: appPop?.ApplicationNo || String(applicationId).slice(-8),
+          amount: txn.amount || 0, // Amount in paise
+          
+          // Patient information
+          patientName: appPop?.patientname || appPop?.studentname || appPop?.student?.name || 'Patient',
+          patientEmail: patientEmail || 'N/A',
+          emergencyType: appPop?.emergencyType || 'Medical Emergency',
+          
+          // Hospital information
+          hospitalName: appPop?.institutionname || appPop?.verifierId?.institutionname || 'Hospital',
+          hospitalEmail: hospitalEmail || 'N/A',
+          accountHolderName: appPop?.payoutDetails?.accountHolderName || appPop?.verifierId?.contactperson || 'N/A',
+          maskedAccountNumber: appPop?.payoutDetails?.accountNumber ? 
+            `****${appPop.payoutDetails.accountNumber.slice(-4)}` : 'N/A',
+          ifscCode: appPop?.payoutDetails?.ifsc || 'N/A'
+        };
 
-            // Header
-            doc.fontSize(18).text('Payment Receipt', { align: 'center' });
-            doc.moveDown();
+        console.log('📧 Generating professional receipt for:', receiptData.receiptNumber);
 
-            // Application / Transaction details
-            doc.fontSize(12).text(`Application ID: ${applicationId}`);
-            doc.text(`Transaction ID: ${txn._id || txn.paymentId || 'N/A'}`);
-            doc.text(`Payment ID: ${txn.paymentId || razorpay_payment_id || 'N/A'}`);
-            doc.text(`Order ID: ${txn.orderId || razorpay_order_id || 'N/A'}`);
-            doc.text(`Date: ${date}`);
-            doc.moveDown();
+        // Generate professional PDF receipt
+        const pdfBuffer = await generateProfessionalReceipt(receiptData);
 
-            // Payer / Payee
-            const payerName = appPop?.studentname || appPop?.student?.name || appPop?.studentid?.name || 'Student';
-            const payeeName = appPop?.verifierId?.contactperson || appPop?.payoutDetails?.accountHolderName || 'Verifier';
-            doc.text(`Payer (Student): ${payerName}`);
-            doc.text(`Payer Email: ${studentEmail || 'N/A'}`);
-            doc.moveDown();
-            doc.text(`Payee (Verifier): ${payeeName}`);
-            doc.text(`Payee Email: ${verifierEmail || 'N/A'}`);
-            doc.moveDown();
+        // Send receipts to both patient and hospital
+        const emailResults = await sendPaymentReceipts(receiptData, pdfBuffer);
 
-            // Amount
-            doc.fontSize(14).text(`Amount Paid: ₹${amountDisplay}`, { continued: false });
-            doc.moveDown(2);
-
-            // Footer / notes
-            doc.fontSize(10).text('Thank you for using our scholarship disbursement service.', { align: 'left' });
-            doc.text('This is a computer-generated receipt.', { align: 'left' });
-
-            doc.end();
-          } catch (e) {
-            reject(e);
-          }
-        });
-
-        const pdfBuffer = await generatePdfBuffer();
-
-        // Send via Gmail helper (uses GMAIL_USER + PASS env vars). Falls back to error if creds missing.
-        const sentRecipients = [];
-        if (studentEmail) {
-          try {
-            await sendReceiptEmailUsingGmail({ to: studentEmail, subject, text: plainText, attachments: [{ filename: `receipt_${applicationId}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }] });
-            console.debug('Receipt email (pdf) sent to student:', studentEmail);
-            sentRecipients.push(studentEmail);
-          } catch (err) {
-            console.error('Failed to send student receipt (pdf):', err);
-          }
+        if (emailResults.success.length > 0) {
+          console.log(`✅ Professional receipts sent successfully to: ${emailResults.success.map(r => r.email).join(', ')}`);
+        }
+        
+        if (emailResults.failed.length > 0) {
+          console.warn(`⚠️ Failed to send receipts to: ${emailResults.failed.map(r => r.email).join(', ')}`);
         }
 
-        // Optionally send to verifier if available and different from student
-        if (verifierEmail && verifierEmail !== studentEmail) {
-          try {
-            await sendReceiptEmailUsingGmail({ to: verifierEmail, subject, text: plainText, attachments: [{ filename: `receipt_${applicationId}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }] });
-            console.debug('Receipt email (pdf) sent to verifier:', verifierEmail);
-            sentRecipients.push(verifierEmail);
-          } catch (err) {
-            console.error('Failed to send verifier receipt (pdf):', err);
-          }
-        }
-
-        // Print a consolidated success message after attempting sends
-        if (sentRecipients.length > 0) {
-          console.info(`Receipt email(s) successfully sent for application ${applicationId} to: ${sentRecipients.join(', ')}`);
-        } else {
-          console.warn(`No receipt emails were sent for application ${applicationId}. Check SMTP/Gmail configuration.`);
-        }
-      } catch (mailErr) {
-        console.error('Error sending receipts (pdf):', mailErr);
+      } catch (receiptError) {
+        console.error('❌ Error sending professional receipts:', receiptError);
       }
     })();
 
@@ -901,19 +1026,27 @@ exports.createBeneficiaryForApplication = async (req, res) => {
     const { name, email, contact, account_number, ifsc } = req.body;
     if (!name || !account_number || !ifsc) return res.status(400).json({ message: 'Missing required bank details: name, account_number, ifsc' });
 
-    // Create contact
-    const contactResp = await createContact({ name, email, contact, type: 'employee' });
-
-    // Create fund_account
-    const faResp = await createFundAccount({
-      contact_id: contactResp.id,
-      account_type: 'bank_account',
-      bank_account: {
-        name,
-        ifsc,
-        account_number,
-      },
-    });
+    // Create contact and fund account with Razorpay. If Razorpay is not configured or API fails,
+    // fallback to simulated responses (useful for local development).
+    let contactResp;
+    let faResp;
+    try {
+      contactResp = await createContact({ name, email, contact, type: 'employee' });
+      faResp = await createFundAccount({
+        contact_id: contactResp.id,
+        account_type: 'bank_account',
+        bank_account: {
+          name,
+          ifsc,
+          account_number,
+        },
+      });
+    } catch (rpErr) {
+      console.warn('Razorpay contact/fund_account creation failed, falling back to simulated beneficiary:', rpErr && rpErr.message ? rpErr.message : rpErr);
+      // Simulate contact + fund account responses
+      contactResp = { id: 'contact_sim_' + Date.now(), name, email, contact };
+      faResp = { id: 'fa_sim_' + Date.now(), contact_id: contactResp.id, bank_account: { name, ifsc, account_number } };
+    }
 
     // Save on application.payoutDetails
     application.payoutDetails = application.payoutDetails || {};
@@ -1197,7 +1330,6 @@ exports.searchTransactions = async (req, res) => {
   try {
     const { applicationId, adminId, transferId, paymentId, orderId, status, beneficiaryId, q, page = 1, limit = 25 } = req.query;
     const filter = {};
-    const mongoose = require('mongoose');
 
     if (applicationId && mongoose.Types.ObjectId.isValid(applicationId)) filter.applicationId = applicationId;
     if (adminId && mongoose.Types.ObjectId.isValid(adminId)) filter.adminid = adminId;
@@ -1214,7 +1346,6 @@ exports.searchTransactions = async (req, res) => {
         { transferId: regex },
         { paymentId: regex },
         { orderId: regex },
-        
       ];
     }
 
@@ -1222,17 +1353,88 @@ exports.searchTransactions = async (req, res) => {
     const l = Math.max(parseInt(limit, 10) || 25, 1);
     const skip = (p - 1) * l;
 
-    const [total, transactions] = await Promise.all([
-      Transaction.countDocuments(filter),
-      Transaction.find(filter)
-        .populate('applicationId', 'ApplicationNo studentname studentemail')
-        .populate('adminid', 'orgName contactEmail name email')
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(l),
-    ]);
+    // Get transactions without population first
+    const total = await Transaction.countDocuments(filter);
+    const transactions = await Transaction.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(l);
 
-    return res.status(200).json({ total, page: p, limit: l, transactions });
+    // Manually populate applicationId if needed
+    const enhancedTransactions = [];
+    for (const txn of transactions) {
+      const txnObj = txn.toObject();
+      
+      // Try to get application details if applicationId exists
+      if (txnObj.applicationId) {
+        try {
+          const application = await VerifierApplication.findById(txnObj.applicationId).select(
+            'ApplicationNo studentname studentemail patientname patientemail institutionname emergencyType requestedamount payoutDetails'
+          );
+          if (application) {
+            txnObj.applicationId = application;
+          }
+        } catch (appError) {
+          console.log('Could not populate application:', appError.message);
+          // Keep the original applicationId as ObjectId
+        }
+      }
+
+      // Try to get admin details if adminid exists
+      if (txnObj.adminid) {
+        try {
+          const AdminDonor = require('../models/AdminDonor');
+          const admin = await AdminDonor.findById(txnObj.adminid).select(
+            'orgName contactEmail name email'
+          );
+          if (admin) {
+            txnObj.adminid = admin;
+          }
+        } catch (adminError) {
+          console.log('Could not populate admin:', adminError.message);
+          // Keep the original adminid as ObjectId
+        }
+      }
+
+      // Add payout details if available from transaction or fallback to application
+      if (txnObj.payoutDetails) {
+        txnObj.payoutDetails = {
+          ...txnObj.payoutDetails,
+          maskedAccountNumber: txnObj.payoutDetails.accountNumber ? 
+            '****' + txnObj.payoutDetails.accountNumber.slice(-4) : undefined
+        };
+      } else if (txnObj.applicationId && typeof txnObj.applicationId === 'object' && txnObj.applicationId.payoutDetails) {
+        // Fallback to application's payout details if transaction doesn't have them
+        const appPayoutDetails = txnObj.applicationId.payoutDetails;
+        txnObj.payoutDetails = {
+          accountHolderName: appPayoutDetails.accountHolderName,
+          accountNumber: appPayoutDetails.accountNumber,
+          maskedAccountNumber: appPayoutDetails.accountNumber ? 
+            '****' + appPayoutDetails.accountNumber.slice(-4) : undefined,
+          ifsc: appPayoutDetails.ifsc,
+          bankName: appPayoutDetails.bankName,
+          email: appPayoutDetails.email,
+          phone: appPayoutDetails.phone,
+        };
+      }
+      
+      // Add completion timestamps
+      if (txnObj.status === 'processed' || txnObj.status === 'paid' || txnObj.status === 'funded') {
+        txnObj.completedAt = txnObj.updatedAt;
+      }
+      if (txnObj.paymentId && txnObj.status !== 'failed') {
+        txnObj.paidAt = txnObj.updatedAt;
+      }
+      
+      enhancedTransactions.push(txnObj);
+    }
+
+    return res.status(200).json({ 
+      total, 
+      page: p, 
+      limit: l, 
+      transactions: enhancedTransactions 
+    });
   } catch (error) {
     console.error('Error in searchTransactions:', error);
     return res.status(500).json({ message: 'Server error', error: error.message });
@@ -1276,6 +1478,77 @@ exports.getTransactionsByAdminId = async (req, res) => {
   } catch (error) {
     console.error('Error in getTransactionsByAdminId:', error);
     return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Hospital Verification Management
+exports.getPendingHospitalVerifications = async (req, res) => {
+  try {
+    const Hospital = require('../models/hospital');
+    const hospitals = await Hospital.find({ 
+      verificationStatus: { $in: ['pending', 'unverified'] }
+    }).select(
+      'institutionName contactPerson contactEmail hospitalLicenseNumber ' +
+      'hospitalAddress emergencyServices verificationSubmittedAt ' + 
+      'verificationDocuments verificationStatus website'
+    ).sort({ verificationSubmittedAt: -1 });
+
+    res.status(200).json({ 
+      count: hospitals.length, 
+      hospitals 
+    });
+  } catch (error) {
+    console.error('Error in getPendingHospitalVerifications:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+exports.updateHospitalVerification = async (req, res) => {
+  try {
+    const { hospitalId } = req.params;
+    const { status, remarks } = req.body;
+console.log('Updating hospital verification:', hospitalId, status);
+
+    if (!hospitalId || !mongoose.Types.ObjectId.isValid(hospitalId)) {
+      console.log('Invalid hospitalId provided:', hospitalId);
+      return res.status(400).json({ message: 'Valid hospitalId is required in URL' });
+    }
+    if (!['verified', 'rejected'].includes(status)) {
+      console.log('Invalid status provided:', status);
+      return res.status(400).json({ message: 'Invalid status. Must be verified or rejected.' });
+    }
+
+    const Hospital = require('../models/hospital');
+    const hospital = await Hospital.findById(hospitalId);
+    
+    if (!hospital) {
+      return res.status(404).json({ message: 'Hospital not found' });
+    }
+
+    hospital.verificationStatus = status;
+    hospital.verificationCompletedAt = new Date();
+    hospital.verificationRemarks = remarks;
+    
+    // If verified, also set as approved for platform access
+    if (status === 'verified') {
+      hospital.approved = true;
+      hospital.status = 'approved';
+    }
+
+    await hospital.save();
+
+    res.status(200).json({ 
+      message: `Hospital ${status} successfully`,
+      hospital: {
+        _id: hospital._id,
+        institutionName: hospital.institutionName,
+        verificationStatus: hospital.verificationStatus,
+        verificationCompletedAt: hospital.verificationCompletedAt
+      }
+    });
+  } catch (error) {
+    console.error('Error in updateHospitalVerification:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 

@@ -57,12 +57,37 @@ async function uploadDocuments(requestId, formData) {
   return response.json();
 }
 
-async function getMyRequests(studentemail) {
-  return api.request(`/Patient/my-requests?studentemail=${encodeURIComponent(studentemail)}`);
+async function getMyRequests(patientemail) {
+  return api.request(`/Patient/my-requests?patientemail=${encodeURIComponent(patientemail)}`);
 }
 
 async function getApplicationStatus(applicationNo) {
   return api.request(`/Patient/applicationstatus/${applicationNo}`);
+}
+
+async function generateEMIPDF(requestId, emiData) {
+  return api.request('/Patient/generate-emi-pdf', {
+    method: 'POST',
+    body: JSON.stringify({ requestId, emiData })
+  });
+}
+
+async function createEMIPaymentOrder(requestId, amount) {
+  return api.request('/Patient/create-emi-payment-order', {
+    method: 'POST',
+    body: JSON.stringify({ requestId, amount })
+  });
+}
+
+async function verifyEMIPayment(paymentData) {
+  return api.request('/Patient/verify-emi-payment', {
+    method: 'POST',
+    body: JSON.stringify(paymentData)
+  });
+}
+
+async function getEMIHistory(requestId) {
+  return api.request(`/Patient/emi-history/${requestId}`);
 }
 
 export default {
@@ -73,4 +98,8 @@ export default {
   uploadDocuments,
   getMyRequests,
   getApplicationStatus,
+  generateEMIPDF,
+  createEMIPaymentOrder,
+  verifyEMIPayment,
+  getEMIHistory,
 };

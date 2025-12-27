@@ -78,4 +78,10 @@ router.post('/requests/:id/disburse', admincontroller.disburseRequest);
 // POST /admin/funds
 router.post('/funds', admincontroller.createFund);
 
+// Hospital Verification Management
+router.get('/hospital-verifications/pending', admincontroller.getPendingHospitalVerifications);
+router.patch('/hospital-verifications/:hospitalId', admincontroller.updateHospitalVerification);
+// GET /admin/hospital-verifications/:hospitalId - fetch hospital details including uploaded verification documents
+router.get('/hospital-verifications/:hospitalId', admincontroller.getHospitalVerificationDetails);
+
 module.exports = router;

@@ -4,7 +4,7 @@ import authService from '../../services/authService';
 import PendingRequests from './PendingRequests';
 import CreateFundingProgram from './CreateFundingProgram';
 import Disbursements from './Disbursements';
-import HospitalVerification from './HospitalVerification';
+import HospitalVerificationAdmin from './HospitalVerificationAdmin';
 import CreditMonitor from './CreditMonitor';
 import './AdminDashboard.css';
 
@@ -16,7 +16,7 @@ export default function AdminDashboard() {
   const menuItems = [
     { id: 'pending', label: 'Pending Requests', icon: '📋' },
     { id: 'disburse', label: 'Disbursements', icon: '💰' },
-    { id: 'create', label: 'Create Program', icon: '➕' },
+    
     { id: 'verify', label: 'Hospital Verification', icon: '🏥' },
     { id: 'credit', label: 'Credit Monitor', icon: '📊' },
   ];
@@ -26,7 +26,7 @@ export default function AdminDashboard() {
       case 'pending': return <PendingRequests />;
       case 'create': return <CreateFundingProgram />;
       case 'disburse': return <Disbursements />;
-      case 'verify': return <HospitalVerification />;
+      case 'verify': return <HospitalVerificationAdmin />;
       case 'credit': return <CreditMonitor />;
       default: return <PendingRequests />;
     }

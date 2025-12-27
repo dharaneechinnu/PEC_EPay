@@ -192,12 +192,25 @@ const verifierApplicationSchema = new mongoose.Schema(
       interestRate: { type: Number },
       processingFee: { type: Number }
     },
+    
+    // EMI Payment tracking
+    emiPayments: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'EMIPayment'
+    }],
+    emiStatus: {
+      type: String,
+      enum: ['not-applicable', 'active', 'completed', 'defaulted'],
+      default: 'not-applicable'
+    },
+    totalEMIPaid: { type: Number, default: 0 },
+    remainingEMIAmount: { type: Number, default: 0 }
   },
   { timestamps: true }
 );
 
 const VerifierApplication = mongoose.model(
-  "hospitalapplyform",
+  "VerifierApplication",
   verifierApplicationSchema
 );
 

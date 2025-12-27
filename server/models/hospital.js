@@ -30,6 +30,31 @@ const verifierSchema = new mongoose.Schema({
   creditLimit: { type: Number, default: 0 }, // Maximum emergency credit limit
   availableCredit: { type: Number, default: 0 }, // Available credit balance
   
+  // Hospital Verification for Patient Access
+  verificationStatus: { 
+    type: String, 
+    enum: ['unverified', 'pending', 'verified', 'rejected'], 
+    default: 'unverified' 
+  },
+  verificationDocuments: [{
+    type: { type: String, enum: ['license', 'registration', 'address_proof', 'other'] },
+    filename: String,
+    originalname: String,
+    path: String,
+    uploadedAt: { type: Date, default: Date.now }
+  }],
+  hospitalAddress: {
+    street: { type: String, trim: true },
+    city: { type: String, trim: true },
+    state: { type: String, trim: true },
+    pincode: { type: String, trim: true },
+    country: { type: String, default: 'India', trim: true }
+  },
+  verificationSubmittedAt: Date,
+  verificationCompletedAt: Date,
+  verificationRemarks: String,
+  verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'AdminDonor' },
+  
   // Emergency Response Capability
   emergencyServices: [{ 
     type: String, 
