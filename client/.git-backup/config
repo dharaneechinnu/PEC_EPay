@@ -1,0 +1,9 @@
+[core]
+	repositoryformatversion = 0
+	filemode = false
+	bare = false
+	logallrefupdates = true
+	ignorecase = true
+[branch "master"]
+	gk-last-accessed = 2025-12-27T03:18:01.525Z
+	gk-last-modified = 2025-12-27T03:18:33.841Z
