@@ -64,6 +64,16 @@ const verifierSchema = new mongoose.Schema({
     emergency24x7: { type: Boolean, default: true },
     regularHours: { type: String }
   },
+  
+  // Hospital Bank Details (for patient auto-fill during funding requests)
+  bankDetails: {
+    accountHolderName: { type: String, trim: true },
+    accountNumber: { type: String, trim: true },
+    ifsc: { type: String, trim: true },
+    bankName: { type: String, trim: true },
+    branchName: { type: String, trim: true },
+    upiId: { type: String, trim: true }
+  },
 
   // Backwards-compatible legacy fields (maintaining API compatibility)
   Inititutename: { type: String, trim: true }, // Legacy institution name

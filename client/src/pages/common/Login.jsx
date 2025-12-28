@@ -156,12 +156,7 @@ export default function Login() {
           </PatientCard>
         </RoleGrid>
 
-        <DemoCard>
-          <strong>Demo Credentials:</strong>
-          <code>Email: demo@example.com</code>
-          <code>Password: demo123</code>
-          <p style={{ margin: '8px 0 0 0' }}>Or use Google Sign-In on the next page.</p>
-        </DemoCard>
+       
       </Card>
     </Container>
   );

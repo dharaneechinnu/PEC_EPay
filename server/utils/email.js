@@ -5,11 +5,22 @@ const GMAIL_PASS = process.env.GMAIL_PASS || process.env.GMAIL_PASSWORD || proce
 
 function createTransporter() {
   if (!GMAIL_USER || !GMAIL_PASS) {
-    const err = new Error('GMAIL credentials are not configured. Set GMAIL_USER and GMAIL_PASS env vars');
-    err.code = 'NO_GMAIL_CREDS';
-    throw err;
+    console.warn('GMAIL credentials are not configured. Falling back to simulated transporter. Set GMAIL_USER and GMAIL_PASS in .env for real emails.');
+    // Return a simulated transporter with a sendMail method so callers don't fail.
+    return {
+      sendMail: async (mailOptions) => {
+        console.log('[Simulated Email] to=', mailOptions.to, 'subject=', mailOptions.subject);
+        return {
+          accepted: Array.isArray(mailOptions.to) ? mailOptions.to : [mailOptions.to],
+          rejected: [],
+          messageId: `simulated-${Date.now()}`
+        };
+      }
+    };
   }
-  return nodemailer.createTransporter({
+
+  // nodemailer API: use createTransport (not createTransporter)
+  return nodemailer.createTransport({
     service: 'gmail',
     auth: { user: GMAIL_USER, pass: GMAIL_PASS },
   });

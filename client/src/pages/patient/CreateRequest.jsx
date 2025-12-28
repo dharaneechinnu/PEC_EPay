@@ -384,7 +384,20 @@ export default function CreateRequest() {
                               key={hospital._id}
                               className="hospital-option"
                               onClick={() => {
-                                setForm({ ...form, hospitalName: hospital.institutionName });
+                                // Auto-populate bank details from hospital
+                                const bankDetails = hospital.bankDetails || {};
+                                setForm({ 
+                                  ...form, 
+                                  hospitalName: hospital.institutionName,
+                                  payoutDetails: {
+                                    accountHolderName: bankDetails.accountHolderName || '',
+                                    accountNumber: bankDetails.accountNumber || '',
+                                    ifsc: bankDetails.ifsc || '',
+                                    bankName: bankDetails.bankName || '',
+                                    email: hospital.contactEmail || '',
+                                    phone: '',
+                                  }
+                                });
                                 setSelectedHospitalId(hospital._id);
                                 setHospitalSearch(hospital.institutionName);
                                 setShowHospitalDropdown(false);
@@ -402,6 +415,11 @@ export default function CreateRequest() {
                                     service.charAt(0).toUpperCase() + service.slice(1)
                                   ).join(', ')}
                                   {hospital.emergencyServices.length > 3 && ' ...'}
+                                </div>
+                              )}
+                              {hospital.bankDetails?.bankName && (
+                                <div className="hospital-bank-info" style={{fontSize:'11px',color:'#16a34a',marginTop:'4px'}}>
+                                  🏦 Bank details available - will auto-fill
                                 </div>
                               )}
                             </div>

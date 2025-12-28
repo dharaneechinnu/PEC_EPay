@@ -444,6 +444,7 @@ exports.getVerificationStatus = async (req, res) => {
         contactEmail: hospital.contactEmail,
         website: hospital.website,
         emergencyServices: hospital.emergencyServices,
+        bankDetails: hospital.bankDetails, // Include bank details
         verificationRemarks: hospital.verificationRemarks
       }
     });
@@ -513,6 +514,7 @@ exports.submitVerification = async (req, res) => {
     hospital.contactEmail = verificationData.contactEmail || hospital.contactEmail;
     hospital.website = verificationData.website;
     hospital.emergencyServices = verificationData.emergencyServices || [];
+    hospital.bankDetails = verificationData.bankDetails || {}; // Save bank details
     hospital.verificationDocuments = documents;
     hospital.verificationStatus = 'pending';
     hospital.verificationSubmittedAt = new Date();
@@ -544,7 +546,8 @@ exports.getVerifiedHospitalsList = async (req, res) => {
       approved: true,
     };
 
-    let hospitalsQuery = Verifier.find(filter).select('institutionName hospitalAddress emergencyServices contactEmail');
+    // Include bankDetails so patients can auto-fill bank info when selecting a hospital
+    let hospitalsQuery = Verifier.find(filter).select('institutionName hospitalAddress emergencyServices contactEmail bankDetails');
 
     if (q) {
       // match institutionName or city/state/zip (case-insensitive, partial)
@@ -557,7 +560,7 @@ exports.getVerifiedHospitalsList = async (req, res) => {
           { 'hospitalAddress.city': { $regex: regex } },
           { 'hospitalAddress.state': { $regex: regex } },
         ],
-      }).select('institutionName hospitalAddress emergencyServices contactEmail');
+      }).select('institutionName hospitalAddress emergencyServices contactEmail bankDetails');
     }
 
     const hospitals = await hospitalsQuery.sort({ institutionName: 1 }).limit(limit).lean();

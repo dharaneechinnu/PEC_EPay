@@ -19,7 +19,15 @@ export default function HospitalVerification() {
     contactPerson: '',
     contactEmail: '',
     website: '',
-    emergencyServices: []
+    emergencyServices: [],
+    bankDetails: {
+      accountHolderName: '',
+      accountNumber: '',
+      ifsc: '',
+      bankName: '',
+      branchName: '',
+      upiId: ''
+    }
   });
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -50,7 +58,15 @@ export default function HospitalVerification() {
           contactPerson: res.hospital.contactPerson || '',
           contactEmail: res.hospital.contactEmail || '',
           website: res.hospital.website || '',
-          emergencyServices: res.hospital.emergencyServices || []
+          emergencyServices: res.hospital.emergencyServices || [],
+          bankDetails: res.hospital.bankDetails || {
+            accountHolderName: '',
+            accountNumber: '',
+            ifsc: '',
+            bankName: '',
+            branchName: '',
+            upiId: ''
+          }
         });
       }
     } catch (err) {
@@ -66,6 +82,15 @@ export default function HospitalVerification() {
         ...verificationData,
         hospitalAddress: {
           ...verificationData.hospitalAddress,
+          [field]: value
+        }
+      });
+    } else if (name.startsWith('bankDetails.')) {
+      const field = name.split('.')[1];
+      setVerificationData({
+        ...verificationData,
+        bankDetails: {
+          ...verificationData.bankDetails,
           [field]: value
         }
       });
@@ -351,6 +376,94 @@ export default function HospitalVerification() {
                 <span>{service.charAt(0).toUpperCase() + service.slice(1)}</span>
               </label>
             ))}
+          </div>
+        </div>
+
+        <div className="form-section">
+          <h3>🏦 Bank Details (For Patient Payments)</h3>
+          <p className="form-help">These details will be auto-filled when patients submit funding requests through your hospital</p>
+          
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Account Holder Name *</label>
+              <input
+                type="text"
+                name="bankDetails.accountHolderName"
+                value={verificationData.bankDetails?.accountHolderName || ''}
+                onChange={handleInputChange}
+                className="form-input"
+                placeholder="Hospital/Trust name as per bank"
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Bank Name *</label>
+              <input
+                type="text"
+                name="bankDetails.bankName"
+                value={verificationData.bankDetails?.bankName || ''}
+                onChange={handleInputChange}
+                className="form-input"
+                placeholder="e.g., State Bank of India"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Account Number *</label>
+              <input
+                type="text"
+                name="bankDetails.accountNumber"
+                value={verificationData.bankDetails?.accountNumber || ''}
+                onChange={handleInputChange}
+                className="form-input"
+                placeholder="Enter bank account number"
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">IFSC Code *</label>
+              <input
+                type="text"
+                name="bankDetails.ifsc"
+                value={verificationData.bankDetails?.ifsc || ''}
+                onChange={handleInputChange}
+                className="form-input"
+                placeholder="e.g., SBIN0001234"
+                pattern="[A-Z]{4}0[A-Z0-9]{6}"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Branch Name</label>
+              <input
+                type="text"
+                name="bankDetails.branchName"
+                value={verificationData.bankDetails?.branchName || ''}
+                onChange={handleInputChange}
+                className="form-input"
+                placeholder="Branch name"
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">UPI ID (Optional)</label>
+              <input
+                type="text"
+                name="bankDetails.upiId"
+                value={verificationData.bankDetails?.upiId || ''}
+                onChange={handleInputChange}
+                className="form-input"
+                placeholder="hospital@upi"
+              />
+            </div>
           </div>
         </div>
 

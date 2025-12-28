@@ -1260,7 +1260,7 @@ exports.resendReceipt = async (req, res) => {
 
     const amountDisplay = (txn.amount || 0) / 100;
     const date = new Date(txn.paidAt || txn.createdAt || Date.now()).toLocaleString();
-    const subject = `Scholarship payment receipt — Application ${applicationId}`;
+    const subject = `payment receipt — Application ${applicationId}`;
     const plainText = `Payment record for Application ${applicationId}\n\nTransaction ID: ${txn._id}\nPayment ID: ${txn.paymentId || 'N/A'}\nOrder ID: ${txn.orderId || 'N/A'}\nAmount: ₹${amountDisplay}\nDate: ${date}\n`;
 
     // Generate PDF buffer
@@ -1284,10 +1284,10 @@ exports.resendReceipt = async (req, res) => {
 
         const payerName = application?.studentname || application?.studentid?.name || 'Student';
         const payeeName = application?.verifierId?.contactperson || application?.payoutDetails?.accountHolderName || 'Verifier';
-        doc.text(`Payer (Student): ${payerName}`);
+        doc.text(`Payer: ${payerName}`);
         doc.text(`Payer Email: ${studentEmail || 'N/A'}`);
         doc.moveDown();
-        doc.text(`Payee (Verifier): ${payeeName}`);
+        doc.text(`Payee : ${payeeName}`);
         doc.text(`Payee Email: ${verifierEmail || 'N/A'}`);
         doc.moveDown();
         doc.fontSize(14).text(`Amount Paid: ₹${amountDisplay}`);
